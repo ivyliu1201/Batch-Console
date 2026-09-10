@@ -1,0 +1,10 @@
+node_modules/
+dist/
+artifacts/
+.npm-cache/
+*.local
+.idea/
+.context-compactor/
+context-compactor/
+example/
+docs/
