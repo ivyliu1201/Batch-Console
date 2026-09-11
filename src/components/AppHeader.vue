@@ -1,6 +1,7 @@
 <script setup>
 import { onBeforeUnmount, onMounted, ref } from 'vue'
 import Icon from './Icon.vue'
+import flowerLogoUrl from '../assets/console-flower.png'
 
 defineProps({ collapsed: Boolean })
 defineEmits(['toggle'])
@@ -45,7 +46,7 @@ onBeforeUnmount(() => {
       </button>
 
       <RouterLink class="brand-row" to="/workbench" aria-label="Batch Console 工作台">
-        <span class="brand-logo" aria-hidden="true">BC</span>
+        <img class="brand-logo" :src="flowerLogoUrl" alt="" />
         <span class="brand-name">Batch Console</span>
       </RouterLink>
     </div>

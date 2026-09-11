@@ -116,8 +116,10 @@ async function main() {
     check('N01 workbench defaults to abnormal with four status cards', () => { assert.deepEqual(initial.stats, ['4', '2', '4', '15']); assert.equal(initial.rows, 4); assert.ok(initial.modes.every(mode => ['手動', '自動'].includes(mode))); });
     const workbenchTitle = await evaluate('document.querySelector("[data-route=dashboard]").textContent.trim()');
     check('B01 navigation uses the workbench name', () => assert.equal(workbenchTitle, '工作台'));
-    const shell = await evaluate(`(() => { const logo=document.querySelector('.brand-logo'); const box=logo.getBoundingClientRect(); return {sidebar:document.querySelector('.sidebar').getBoundingClientRect().width,top:document.querySelector('.sidebar').getBoundingClientRect().top,header:document.querySelector('.topbar').getBoundingClientRect().height,logoText:logo.textContent.trim(),logoWidth:box.width,logoHeight:box.height}; })()`);
-    check('B14 shell uses its neutral logo, sidebar below the header and 64px header',()=>{assert.equal(shell.sidebar,240);assert.equal(shell.top,64);assert.equal(shell.header,64);assert.equal(shell.logoText,'BC');assert.equal(shell.logoWidth,40);assert.equal(shell.logoHeight,40);});
+    const duplicateBrand = await evaluate('document.querySelector(".sidebar").textContent.includes("Batch Console")');
+    check('Sidebar does not repeat the header brand above the workbench navigation', () => assert.equal(duplicateBrand, false));
+    const shell = await evaluate(`(() => { const logo=document.querySelector('.brand-logo'); const box=logo.getBoundingClientRect(); return {sidebar:document.querySelector('.sidebar').getBoundingClientRect().width,top:document.querySelector('.sidebar').getBoundingClientRect().top,header:document.querySelector('.topbar').getBoundingClientRect().height,logoLoaded:logo.tagName==='IMG'&&logo.complete&&logo.naturalWidth>0,logoWidth:box.width,logoHeight:box.height}; })()`);
+    check('B14 shell uses the restored flower image, sidebar below the header and 64px header',()=>{assert.equal(shell.sidebar,240);assert.equal(shell.top,64);assert.equal(shell.header,64);assert.equal(shell.logoLoaded,true);assert.equal(shell.logoWidth,40);assert.equal(shell.logoHeight,40);});
     const auditCountBeforeSidebarToggle = await evaluate('window.BatchConsoleAudit.list().length');
     await click('#sidebar-toggle');
     await evaluate('new Promise(resolve=>setTimeout(resolve,250))');
@@ -327,8 +329,30 @@ async function main() {
     check('N03 returning from confirmation preserves the pending batch',()=>{});
     const stillReview = await evaluate('document.querySelector(".detail-actions .badge").textContent');
     assert.equal(stillReview,'審核中');
+    const dismissedCancelNotice = await evaluate('!!document.querySelector(".cancel-toast")');
+    check('Dismissing cancellation does not show a success notification', () => assert.equal(dismissedCancelNotice, false));
     await click('#cancel-upload'); await click('#confirm-cancel-upload');
     await waitFor('!document.querySelector("#cancel-dialog").open && !!document.querySelector(".cancelled-notice")');
+    const cancelNotice = await evaluate('document.querySelector(".cancel-toast")?.textContent || ""');
+    check('Confirmed cancellation displays a success notification identifying the batch', () => {
+      assert.match(cancelNotice, /取消上傳成功/); assert.match(cancelNotice, /ABC-20260907-008/);
+    });
+    await screenshot('cancel-success-notice');
+    await viewport(320, 640);
+    const cancelNoticeBounds = await evaluate(`(() => {
+      const toast=document.querySelector('.cancel-toast'); const box=toast.getBoundingClientRect();
+      const hit=document.elementFromPoint(box.x+box.width/2,box.y+box.height/2);
+      return {left:box.left,right:box.right,top:box.top,bottom:box.bottom,visible:toast===hit||toast.contains(hit)};
+    })()`);
+    check('Cancellation success notification remains visible within the mobile viewport', () => {
+      assert.ok(cancelNoticeBounds.left>=0 && cancelNoticeBounds.right<=320 && cancelNoticeBounds.top>=0 && cancelNoticeBounds.bottom<=640);
+      assert.equal(cancelNoticeBounds.visible,true);
+    });
+    await screenshot('cancel-success-notice-mobile');
+    await viewport(1440, 1000);
+    await waitFor('!document.querySelector(".cancel-toast")');
+    const cancelStateAfterNotice = await evaluate('document.querySelector(".detail-actions .badge").textContent');
+    check('Cancellation notification disappears while the cancelled batch state remains', () => assert.equal(cancelStateAfterNotice, '已取消'));
     const cancelled = await evaluate(`({status:document.querySelector('.detail-actions .badge').textContent,cancel:!!document.querySelector('#cancel-upload'),waiting:document.querySelectorAll('.stage.waiting').length,names:[...document.querySelectorAll('.stage-name')].map(e=>e.textContent)})`);
     check('N03 cancelled upload keeps all eight stages and cannot be cancelled again',()=>{assert.equal(cancelled.status,'已取消');assert.equal(cancelled.cancel,false);assert.equal(cancelled.waiting,6);assert.deepEqual(cancelled.names,['上傳檔案','審核完成',...stageNames]);});
     const cancelTime = await evaluate('document.querySelector(".stage.cancelled .stage-time").textContent');
@@ -428,6 +452,109 @@ async function main() {
     await waitFor('!document.querySelector("#date-dialog").open');
     const escaped = await evaluate('({focus:document.activeElement.id,auditCount:window.BatchConsoleAudit.list().length})');
     check('Vue Escape closes calendar, restores focus and does not record browsing',()=>{assert.equal(escaped.focus,'open-calendar');assert.equal(escaped.auditCount,auditCountBeforeEscape);});
+    // User-confirmed keyword search scenarios. Use keyboard input and the real form.
+    async function searchKeyword(value) {
+      await click('#batch-id-input');
+      await send('Input.dispatchKeyEvent', { type: 'keyDown', key: 'a', code: 'KeyA', modifiers: 2, windowsVirtualKeyCode: 65 });
+      await send('Input.dispatchKeyEvent', { type: 'keyUp', key: 'a', code: 'KeyA', modifiers: 2, windowsVirtualKeyCode: 65 });
+      await send('Input.dispatchKeyEvent', { type: 'keyDown', key: 'Backspace', code: 'Backspace', windowsVirtualKeyCode: 8 });
+      await send('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Backspace', code: 'Backspace', windowsVirtualKeyCode: 8 });
+      if (value) await send('Input.insertText', { text: value });
+      await send('Input.dispatchKeyEvent', { type: 'keyDown', key: 'Enter', code: 'Enter', windowsVirtualKeyCode: 13, text: '\r' });
+      await send('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Enter', code: 'Enter', windowsVirtualKeyCode: 13 });
+      await evaluate('new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))');
+    }
+    await send('Page.navigate', { url: 'http://127.0.0.1:5173/search' });
+    await waitFor('document.querySelectorAll("#query-table tbody tr").length === 20');
+    const keywordAuditCount = await evaluate('window.BatchConsoleAudit.list().length');
+    await click('#query-pagination [aria-label="下一頁"]');
+    await searchKeyword('  aBc-202609  ');
+    const keywordResult = await evaluate(`({total:document.querySelector('#query-pagination-summary').textContent,page:document.querySelector('#query-pagination [aria-current]').textContent,input:document.querySelector('#batch-id-input').value})`);
+    check('Keyword search ignores case and surrounding spaces and resets page two', () => {
+      assert.match(keywordResult.total, /共 25 筆/); assert.equal(keywordResult.page, '1'); assert.equal(keywordResult.input, 'aBc-202609');
+    });
+    await click('#query-pagination [aria-label="下一頁"]');
+    await click('#query-table [data-batch="ABC-20260906-021"]');
+    await click('#back-to-batches');
+    const keywordBack = await evaluate(`({page:document.querySelector('#query-pagination [aria-current]').textContent,input:document.querySelector('#batch-id-input').value})`);
+    check('Returning from detail keeps the keyword and page two', () => assert.deepEqual(keywordBack, { page: '2', input: 'aBc-202609' }));
+    await click('#query-table [data-batch="ABC-20260906-021"]');
+    await click('#toggle-batch-search');
+    const detailKeyword = await evaluate('document.querySelector("#batch-id-input").value');
+    check('Adjusting conditions in detail keeps the keyword instead of replacing it with the selected ID', () => assert.equal(detailKeyword, 'aBc-202609'));
+    await click('#open-query-calendar');
+    await click('[data-date-mode="single"]'); await click('[data-date="2026-09-06"]'); await click('#apply-calendar');
+    const keywordDate = await evaluate(`({ids:[...document.querySelectorAll('#query-table [data-batch]')].map(e=>e.dataset.batch),page:document.querySelector('#query-pagination [aria-current]').textContent,input:document.querySelector('#batch-id-input').value})`);
+    check('Date selected in detail intersects the original keyword and returns all six matching batches', () => {
+      assert.equal(keywordDate.ids.length, 6); assert.ok(keywordDate.ids.every(id => id.startsWith('ABC-20260906-'))); assert.equal(keywordDate.page, '1'); assert.equal(keywordDate.input, 'aBc-202609');
+    });
+    await click('#query-table [data-batch="ABC-20260906-020"]'); await click('#back-to-batches');
+    const retainedDate = await evaluate('document.querySelector("#query-date-label").textContent');
+    check('Returning from detail preserves the keyword date intersection', () => assert.equal(retainedDate, '2026/09/06'));
+    await searchKeyword('');
+    const clearedKeyword = await evaluate(`({rows:document.querySelectorAll('#query-table tbody tr').length,date:document.querySelector('#query-date-label').textContent,input:document.querySelector('#batch-id-input').value})`);
+    check('Clearing and submitting the keyword keeps the date and its six matching batches', () => assert.deepEqual(clearedKeyword, { rows: 6, date: '2026/09/06', input: '' }));
+    await click('#clear-query-date');
+    await searchKeyword('025');
+    await waitFor('document.querySelector(".detail-identity h2")?.textContent === "ABC-20260906-025"');
+    check('A suffix with one match retains the existing automatic detail navigation', () => {});
+    await click('#toggle-batch-search'); await searchKeyword('6090');
+    const middleResult = await evaluate('document.querySelector("#query-pagination-summary").textContent');
+    check('A middle keyword submitted from detail returns the matching list', () => assert.match(middleResult, /共 25 筆/));
+    await searchKeyword('NO-SUCH-BATCH');
+    const missingKeyword = await evaluate('document.querySelector("#query-table").textContent');
+    check('An unmatched keyword shows the empty-result message', () => assert.match(missingKeyword, /查無符合的批次/));
+    await click('#show-all-batches');
+    await viewport(320, 640);
+    if (await evaluate('document.querySelector("#sidebar-toggle").getAttribute("aria-expanded") === "true"')) {
+      await click('#sidebar-toggle'); await evaluate('new Promise(resolve => setTimeout(resolve,250))');
+    }
+    await searchKeyword('  aBc-20260906  ');
+    const mobileKeyword = await evaluate('document.querySelectorAll("#query-table tbody tr").length');
+    check('Mobile keyword search returns all six matching batches', () => assert.equal(mobileKeyword, 6));
+    await layout('keyword-search-mobile'); await screenshot('33-keyword-search-mobile');
+    const finalKeywordAuditCount = await evaluate('window.BatchConsoleAudit.list().length');
+    check('Keyword, date and detail browsing create no batch audit entries', () => assert.equal(finalKeywordAuditCount, keywordAuditCount));
+    await viewport(1440, 1000);
+    await send('Page.navigate', { url: 'http://127.0.0.1:5173/workbench' });
+    await waitFor('document.querySelectorAll(".stat-number").length === 4');
+    await screenshot('34-readme-workbench');
+    // Confirmed file-operation audit rules: one entry per successful multi-file download.
+    await navigate('a[href="/operation/download"]');
+    await waitFor('document.querySelectorAll(".download-file-table tbody tr").length === 20');
+    const downloadAuditCount = await evaluate('window.BatchConsoleAudit.list().length');
+    const firstDownloadName = await evaluate('document.querySelector(".download-file-table tbody tr td:nth-child(4)").textContent');
+    await click('.download-file-table tbody tr:first-child');
+    await click('.download-view [aria-label="下一頁"]');
+    const secondDownloadName = await evaluate('document.querySelector(".download-file-table tbody tr td:nth-child(4)").textContent');
+    await click('.download-file-table tbody tr:first-child');
+    await click('.download-submit-button');
+    await click('.confirm-modal .text-button');
+    const dismissedDownload = await evaluate('window.BatchConsoleAudit.list().length');
+    check('Selecting files across pages and dismissing download confirmation creates no audit entries', () => assert.equal(dismissedDownload, downloadAuditCount));
+    await click('.download-submit-button'); await click('.confirm-modal .primary-button');
+    const successfulDownload = await evaluate('window.BatchConsoleAudit.list()');
+    check('A successful multi-file download records one entry containing both filenames and the completion time', () => {
+      assert.equal(successfulDownload.length, downloadAuditCount+1);
+      const entry=successfulDownload.at(-1);
+      assert.equal(entry.page,'下傳'); assert.equal(entry.batchId,null);
+      assert.ok(entry.action.includes(firstDownloadName)); assert.ok(entry.action.includes(secondDownloadName));
+      assert.match(entry.action,/2 筆/); assert.equal(entry.time,'2026-09-07T17:00:00+08:00');
+    });
+    const resetDownload = await evaluate('document.querySelector(".selected-count").textContent');
+    check('Successful download still clears the selected files', () => assert.match(resetDownload,/0 筆/));
+    // Page two contains the existing simulated-failure file (ID 37).
+    await click('.download-file-table tbody tr:nth-child(17)');
+    await click('.download-submit-button'); await click('.confirm-modal .primary-button');
+    await waitFor('document.querySelector(".download-toast.is-error")');
+    const failedDownloadAudit = await evaluate('window.BatchConsoleAudit.list()');
+    check('A failed download keeps the audit history unchanged', () => assert.deepEqual(failedDownloadAudit,successfulDownload));
+    await navigate('[data-route="audit"]');
+    const downloadAuditRow = await evaluate(`(() => { const row=document.querySelector('.audit-table tbody tr'); return {batch:row.querySelector('.batch-code').textContent,action:row.querySelector('.audit-action').textContent,source:row.querySelector('.audit-source').textContent}; })()`);
+    check('Operation log renders one download entry with both filenames and a dash for the batch ID', () => {
+      assert.equal(downloadAuditRow.batch,'—'); assert.equal(downloadAuditRow.action,successfulDownload.at(-1).action); assert.equal(downloadAuditRow.source,'下傳');
+    });
+    await screenshot('35-download-audit-record');
     check('No uncaught JavaScript exceptions', () => assert.deepEqual(runtimeErrors, []));
     report.completed = true;
   } catch (error) {

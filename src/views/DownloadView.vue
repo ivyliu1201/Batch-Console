@@ -1,5 +1,6 @@
 <script setup>
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import { audit } from '../services/audit.js'
 
 const jobTypes = [
   {
@@ -157,6 +158,7 @@ const confirmDownload = () => {
   }
 
   const downloadedCount = selectedCount.value
+  audit.record('下傳', `下傳成功：${downloadedCount} 筆檔案；${selectedFiles.value.map((file) => file.fileName).join('、')}`)
   selectedIds.value = new Set()
   showNotification('success', '下載成功', `已成功下載 ${downloadedCount} 筆檔案。`)
 }

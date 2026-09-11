@@ -1,5 +1,6 @@
 <script setup>
 import { computed, inject, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { audit } from '../services/audit.js'
 import {
   filePreviewModes,
   formatFileSize,
@@ -89,6 +90,7 @@ const openJob = (job) => {
 }
 
 const backToList = () => {
+  const completedResult = transferResult.value
   currentMode.value = 'list'
   selectedJob.value = null
   selectedFile.value = null
@@ -96,6 +98,9 @@ const backToList = () => {
   transferResult.value = null
   previewMode.value = 'all'
   if (fileInput.value) fileInput.value.value = ''
+  if (completedResult) {
+    showNotification('success', '轉送成功', `已完成 ${completedResult.sourceFileName} 的示範轉送。`)
+  }
 }
 
 const triggerFileSelection = () => {
@@ -174,6 +179,7 @@ const confirmTransfer = async () => {
     previewMode.value = 'all'
     showConfirmModal.value = false
     clearNotification()
+    audit.record('轉送', `轉送成功：${job.jobName}；來源檔案：${file.name}；請求檔案：${requestFileName}`)
   } catch {
     showConfirmModal.value = false
     showNotification('error', '轉送失敗', '無法建立請求檔流水號，請稍後重新嘗試。')
@@ -909,6 +915,7 @@ onBeforeUnmount(() => {
 .transfer-toast span {
   color: var(--batch-text-secondary);
   font-size: 0.9rem;
+  overflow-wrap: anywhere;
 }
 
 .transfer-toast.is-error {

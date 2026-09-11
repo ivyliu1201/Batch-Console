@@ -28,8 +28,6 @@ const isOperationActive = () => route.path.startsWith('/operation/')
 
 <template>
   <aside class="sidebar" aria-label="主要導覽">
-    <div class="sidebar-title">Batch Console</div>
-
     <nav id="primary-navigation">
       <RouterLink
         v-for="link in primaryLinks"

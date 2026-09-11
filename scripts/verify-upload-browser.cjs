@@ -2,7 +2,7 @@ const fs = require('node:fs')
 const path = require('node:path')
 const assert = require('node:assert/strict')
 
-async function main() {
+async function main(operation, label, fileTypeCode) {
   const targets = await (await fetch('http://127.0.0.1:9223/json/list')).json()
   const target = targets.find((item) => item.type === 'page' && !item.url.startsWith('edge://'))
   assert.ok(target, 'An isolated Edge page must be available')
@@ -92,7 +92,7 @@ async function main() {
     await evaluate('new Promise(resolve=>setTimeout(resolve,250))')
   }
 
-  const evidenceDirectory = path.join(__dirname, '..', 'artifacts', 'upload-browser')
+  const evidenceDirectory = path.join(__dirname, '..', 'artifacts', `${operation}-browser`)
   fs.mkdirSync(evidenceDirectory, { recursive: true })
 
   async function screenshot(name) {
@@ -102,7 +102,7 @@ async function main() {
 
   function check(name, assertion) {
     assertion()
-    console.log(`OK ${name}`)
+    console.log(`OK ${operation}: ${name}`)
   }
 
   async function chooseFile(name, content, type) {
@@ -133,35 +133,43 @@ async function main() {
     })
 
     await viewport(1440, 1000)
-    await send('Page.navigate', { url: 'http://127.0.0.1:5173/operation/upload' })
-    await waitFor('document.querySelector(".upload-job-table tbody tr")')
+    await send('Page.navigate', { url: `http://127.0.0.1:5173/operation/${operation}` })
+    await waitFor(`document.querySelector('.${operation}-job-table tbody tr')`)
     await evaluate('localStorage.removeItem("batch-console-upload-sequence")')
+    const initialAuditCount = await evaluate('window.BatchConsoleAudit.list().length')
 
     const initial = await evaluate(`({
       accept:document.querySelector('.native-file-input')?.getAttribute('accept')??null,
-      text:document.querySelector('.upload-view').textContent
+      text:document.querySelector('.${operation}-view').textContent
     })`)
     check('source files have no extension restriction', () => {
       assert.equal(initial.accept, null)
       assert.doesNotMatch(initial.text, /支援格式/)
     })
 
-    await click('.upload-job-table tbody tr:first-child .outline-button')
+    await click(`.${operation}-job-table tbody tr:first-child .outline-button`)
     await chooseFile('upload-fail.csv', 'failed content', 'text/csv')
-    await click('.upload-submit-button')
+    await click(`.${operation}-submit-button`)
+    await click('.confirm-modal .text-button')
+    const auditAfterDismissal = await evaluate('window.BatchConsoleAudit.list().length')
+    check('dismissing file-operation confirmation creates no audit entry', () => assert.equal(auditAfterDismissal, initialAuditCount))
+    await click(`.${operation}-submit-button`)
     await click('.confirm-modal .primary-button')
-    await waitFor('document.querySelector(".upload-toast.is-error")')
+    await waitFor(`document.querySelector('.${operation}-toast.is-error')`)
     const sequenceAfterFailure = await evaluate('localStorage.getItem("batch-console-upload-sequence")')
     check('simulated failure does not consume a serial', () =>
       assert.equal(sequenceAfterFailure, null),
     )
+    const auditAfterFailure = await evaluate('window.BatchConsoleAudit.list().length')
+    check('failed file operation creates no audit entry', () => assert.equal(auditAfterFailure, initialAuditCount))
 
     const content = Array.from({ length: 12 }, (_, index) => `line ${index + 1}`).join('\n')
     await chooseFile('source.pdf', content, 'application/pdf')
-    await click('.upload-submit-button')
+    await click(`.${operation}-submit-button`)
     await click('.confirm-modal .primary-button')
-    await waitFor('document.querySelector(".upload-result-modal")')
-    await waitFor('!document.querySelector(".upload-toast")')
+    await waitFor(`document.querySelector('.${operation}-result-modal')`)
+    const prematureNotice = await evaluate(`!!document.querySelector('.${operation}-toast.is-success')`)
+    check('success notification is deferred while the preview is open', () => assert.equal(prematureNotice, false))
 
     const result = await evaluate(`({
       request:document.querySelector('.request-file-info dd').textContent,
@@ -171,11 +179,19 @@ async function main() {
       sequence:JSON.parse(localStorage.getItem('batch-console-upload-sequence'))
     })`)
     check('success creates the DAT result and all preview choices', () => {
-      assert.equal(result.request, 'DT0120260907170000001.DAT')
+      assert.equal(result.request, `${fileTypeCode}20260907170000001.DAT`)
       assert.equal(result.source, 'source.pdf')
       assert.match(result.content, /line 1[\s\S]*line 12/)
       assert.deepEqual(result.modes, ['全部', '前 10 行', '後 10 行'])
       assert.deepEqual(result.sequence, { dateKey: '20260907', lastSerial: 1 })
+    })
+    const completedAudit = await evaluate('window.BatchConsoleAudit.list()')
+    check('successful file operation records exactly one filename and timestamp without inventing a batch ID', () => {
+      assert.equal(completedAudit.length, initialAuditCount + 1)
+      const entry = completedAudit.at(-1)
+      assert.equal(entry.page, label); assert.equal(entry.batchId, null)
+      assert.ok(entry.action.includes('source.pdf')); assert.ok(entry.action.includes(result.request))
+      assert.equal(entry.time, '2026-09-07T17:00:00+08:00')
     })
     await click('.preview-mode-group button:nth-child(2)')
     const firstTen = await evaluate('document.querySelector(".file-preview-text").textContent.split("\\n")')
@@ -206,7 +222,7 @@ async function main() {
       await evaluate('new Promise(resolve=>setTimeout(resolve,250))')
     }
     const mobile = await evaluate(`(() => {
-      const modal=document.querySelector('.upload-result-modal');
+      const modal=document.querySelector('.${operation}-result-modal');
       const box=modal.getBoundingClientRect();
       const controls=[...modal.querySelectorAll('button')].map(element=>element.getBoundingClientRect());
       const outside=[...document.querySelectorAll('body *')].filter(element=>{const item=element.getBoundingClientRect();return item.right>innerWidth+1||item.left< -1;}).map(element=>({tag:element.tagName,className:element.className?.baseVal??element.className,left:element.getBoundingClientRect().left,right:element.getBoundingClientRect().right,scrollWidth:element.scrollWidth})).slice(0,20);
@@ -220,16 +236,87 @@ async function main() {
     })
     await screenshot('upload-result-mobile')
 
+    const noticeWhileReading = await evaluate(`!!document.querySelector('.${operation}-toast.is-success')`)
+    check('reading all and first/last ten lines never shows the success notification', () => assert.equal(noticeWhileReading, false))
+    await click(`.${operation}-result-modal .modal-actions .primary-button`)
+    const completed = await evaluate(`({notice:document.querySelector('.${operation}-toast.is-success')?.textContent || '',preview:!!document.querySelector('.${operation}-result-modal'),list:!!document.querySelector('.${operation}-job-table')})`)
+    check('closing the preview returns to the list and displays one success notification', () => {
+      assert.match(completed.notice, new RegExp(`${label}成功`)); assert.ok(completed.notice.includes('source.pdf'))
+      assert.equal(completed.preview, false); assert.equal(completed.list, true)
+    })
+    const toastBounds = await evaluate(`(() => {
+      const toast=document.querySelector('.${operation}-toast'); const box=toast.getBoundingClientRect();
+      const hit=document.elementFromPoint(box.x+box.width/2,box.y+box.height/2);
+      return {left:box.left,right:box.right,top:box.top,bottom:box.bottom,visible:toast===hit||toast.contains(hit)};
+    })()`)
+    check('mobile notification is visible within the viewport after closing the preview', () => {
+      assert.ok(toastBounds.left>=0 && toastBounds.right<=320 && toastBounds.top>=0 && toastBounds.bottom<=640)
+      assert.equal(toastBounds.visible, true)
+    })
+    await waitFor(`getComputedStyle(document.querySelector('.${operation}-toast')).opacity === '1'`)
+    await screenshot(`${operation}-success-notice-mobile`)
+    await viewport(1440, 1000); await screenshot(`${operation}-success-notice-desktop`)
+    await waitFor(`!document.querySelector('.${operation}-toast')`)
+    check('success notification automatically disappears after returning to the list', () => {})
+    await click(`.${operation}-job-table tbody tr:first-child .outline-button`)
+    await click(`.${operation}-page-heading-row .text-button`)
+    const repeatNotice = await evaluate(`!!document.querySelector('.${operation}-toast.is-success')`)
+    check('returning without completing another operation does not repeat the success notice', () => assert.equal(repeatNotice, false))
+    const auditAfterPreview = await evaluate('window.BatchConsoleAudit.list()')
+    check('switching previews, closing the result and returning cannot duplicate the audit entry', () => assert.deepEqual(auditAfterPreview, completedAudit))
+    await click('[data-route="audit"]')
+    await waitFor('document.querySelector(".audit-table tbody tr")')
+    const auditRow = await evaluate(`(() => {
+      const row=document.querySelector('.audit-table tbody tr');
+      return {batch:row.querySelector('.batch-code').textContent,action:row.querySelector('.audit-action').textContent,source:row.querySelector('.audit-source').textContent,time:row.querySelector('.audit-time').textContent};
+    })()`)
+    check('operation log page displays the new operation first with an empty batch reference', () => {
+      assert.equal(auditRow.batch, '—'); assert.equal(auditRow.action, completedAudit.at(-1).action)
+      assert.equal(auditRow.source, label); assert.match(auditRow.time, /2026\/09\/07.*17:00:00/)
+    })
+    await screenshot(`${operation}-audit-record`)
+
+    // Complete the existing long-name confirmation at desktop width, then inspect the new mobile notice.
+    await viewport(1920, 1000)
+    await send('Page.navigate', { url: `http://127.0.0.1:5173/operation/${operation}` })
+    await waitFor(`document.querySelector('.${operation}-job-table tbody tr')`)
+    await click(`.${operation}-job-table tbody tr:first-child .outline-button`)
+    const longFileName = 'source-' + 'a'.repeat(160) + '.txt'
+    await chooseFile(longFileName, 'preview content', 'text/plain')
+    await click(`.${operation}-submit-button`)
+    await click('.confirm-modal .primary-button')
+    await waitFor(`document.querySelector('.${operation}-result-modal')`)
+    await click(`.${operation}-result-modal .modal-actions .primary-button`)
+    await waitFor(`document.querySelector('.${operation}-toast.is-success')`)
+    await viewport(320, 640)
+    const longNotice = await evaluate(`(() => {
+      const toast=document.querySelector('.${operation}-toast'); const text=toast.querySelector('span');
+      const box=toast.getBoundingClientRect(); const textBox=text.getBoundingClientRect();
+      return {message:text.textContent,inside:textBox.right<=box.right && text.scrollWidth<=text.clientWidth};
+    })()`)
+    check('long source filenames wrap within the mobile notification', () => {
+      assert.ok(longNotice.message.includes(longFileName)); assert.equal(longNotice.inside, true)
+    })
+    await screenshot(`${operation}-long-name-notice-mobile`)
     const pageErrors = await evaluate('window.__uploadTestErrors')
-    check('upload flow has no uncaught JavaScript exceptions', () =>
+    check('file operation has no uncaught JavaScript exceptions', () =>
       assert.deepEqual(pageErrors, []),
     )
+  } catch (error) {
+    await screenshot(`${operation}-failure`)
+    console.error(await evaluate('document.querySelector("main")?.textContent'))
+    throw error
   } finally {
     socket.close()
   }
 }
 
-main().catch((error) => {
+async function run() {
+  const operations = [['upload', '上傳', 'DT01'], ['transfer', '轉送', 'EXD1']]
+  for (const args of operations) await main(...args)
+}
+
+run().catch((error) => {
   console.error(error)
   process.exitCode = 1
 })

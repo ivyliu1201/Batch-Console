@@ -1,5 +1,6 @@
 <script setup>
 import { computed, inject, onBeforeUnmount, ref, watch } from 'vue'
+import { audit } from '../services/audit.js'
 import {
   filePreviewModes,
   formatFileSize,
@@ -119,6 +120,7 @@ const openJob = (job) => {
 }
 
 const backToList = () => {
+  const completedResult = uploadResult.value
   currentMode.value = 'list'
   selectedJob.value = null
   selectedFile.value = null
@@ -126,6 +128,9 @@ const backToList = () => {
   uploadResult.value = null
   previewMode.value = 'all'
   if (fileInput.value) fileInput.value.value = ''
+  if (completedResult) {
+    showNotification('success', '上傳成功', `已完成 ${completedResult.sourceFileName} 的示範上傳。`)
+  }
 }
 
 const triggerFileSelection = () => {
@@ -204,6 +209,7 @@ const confirmUpload = async () => {
     previewMode.value = 'all'
     showConfirmModal.value = false
     clearNotification()
+    audit.record('上傳', `上傳成功：${job.jobName}；來源檔案：${file.name}；請求檔案：${requestFileName}`)
   } catch {
     showConfirmModal.value = false
     showNotification('error', '上傳失敗', '無法建立請求檔流水號，請稍後重新嘗試。')
@@ -952,6 +958,7 @@ onBeforeUnmount(() => {
 .upload-toast span {
   color: var(--muted);
   font-size: 0.9rem;
+  overflow-wrap: anywhere;
 }
 
 .upload-toast.is-error {

@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed, watch, nextTick } from 'vue';
+import { ref, computed, watch, nextTick, onBeforeUnmount } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import Icon from '../components/Icon.vue';
 import BatchTable from '../components/BatchTable.vue';
@@ -30,6 +30,9 @@ const pagination = ref(null);
 const searchExpanded = ref(false);
 const cancelDialog = ref(null);
 const cancelTrigger = ref(null);
+const notification = ref('');
+let notificationTimer;
+onBeforeUnmount(() => window.clearTimeout(notificationTimer));
 
 const selectedBatch = computed(() => batches.find(batch => batch.id === selectedId.value) || null);
 const stage = computed(() => selectedBatch.value?.stages[selectedStage.value]);
@@ -50,9 +53,9 @@ function selectBatch(id) {
   selectedId.value = id || '';
   searchExpanded.value = false;
   feedback.value = '';
-  input.value = id || query.value;
+  input.value = query.value;
   if (!selectedBatch.value) {
-    if (id) { query.value = id; page.value = 1; feedback.value = '查無批次「' + id + '」。'; }
+    if (id) { query.value = id; input.value = id; page.value = 1; feedback.value = '查無批次「' + id + '」。'; }
     return;
   }
   const index = selectedBatch.value.stages.findIndex(item => ['stopped', 'processing', 'retrying', 'reviewing', 'cancelled'].includes(stageSummary(item).state));
@@ -121,6 +124,9 @@ function confirmCancel() {
   batches.splice(index, 1, cancelUpload(batch, taipeiNow()));
   audit.record('查詢批次', '取消上傳：批次已取消，後續流程不再執行', batch.id);
   cancelDialog.value.close();
+  notification.value = `批次 ${batch.id} 已取消，後續流程不再執行。`;
+  window.clearTimeout(notificationTimer);
+  notificationTimer = window.setTimeout(() => { notification.value = ''; }, 3000);
 }
 async function closeCancellation() {
   await nextTick();
@@ -130,11 +136,17 @@ async function closeCancellation() {
 </script>
 <template>
   <section id="query-view" class="view" aria-labelledby="query-title">
+    <Transition name="toast">
+      <div v-if="notification" class="cancel-toast" role="status">
+        <strong>取消上傳成功</strong><span>{{ notification }}</span>
+      </div>
+    </Transition>
     <div class="page-heading"><div><h1 id="query-title">查詢批次</h1></div></div>
     <button v-if="selectedBatch" id="toggle-batch-search" class="button secondary search-toggle" type="button" :aria-expanded="searchExpanded" aria-controls="batch-search" @click="searchExpanded = !searchExpanded"><Icon name="search" />{{ searchExpanded ? '收合查詢條件' : '調整查詢條件' }}</button>
     <form v-show="!selectedBatch || searchExpanded" id="batch-search" class="panel search-panel" role="search" aria-label="批次查詢" @submit.prevent="search">
       <label for="batch-id-input">批次編號</label>
-      <div class="search-controls"><div class="search-input"><Icon name="search" /><input id="batch-id-input" v-model="input" name="batch" type="search" autocomplete="off" placeholder="輸入批次編號"></div><button class="button primary" type="submit">查詢批次</button><button class="button secondary" type="button" id="show-all-batches" @click="showAll">顯示全部</button></div>
+      <div class="search-controls"><div class="search-input"><Icon name="search" /><input id="batch-id-input" v-model="input" name="batch" type="search" autocomplete="off" placeholder="輸入完整或部分批次編號" aria-describedby="batch-search-help"></div><button class="button primary" type="submit">查詢批次</button><button class="button secondary" type="button" id="show-all-batches" @click="showAll">顯示全部</button></div>
+      <p id="batch-search-help" class="search-feedback">支援關鍵字模糊查詢，不分英文大小寫，可搭配日期篩選。</p>
       <div class="query-date-filter">
         <div><span class="filter-label">最後更新日期</span><p id="query-range-description">最後更新日期：{{ rangeDescription }} · 每頁最多 20 筆</p></div>
         <div class="date-controls"><button ref="dateTrigger" id="open-query-calendar" class="button secondary date-trigger" type="button" aria-haspopup="dialog" @click="picker.open()"><Icon name="calendar" /><span id="query-date-label">{{ start ? rangeDescription : '選擇日期或區間' }}</span><Icon name="chevron" class="small chevron-down" /></button><button id="clear-query-date" class="text-button" type="button" :hidden="!start" @click="clearRange">清除日期</button></div>
@@ -179,3 +191,27 @@ async function closeCancellation() {
     </dialog>
   </section>
 </template>
+
+<style scoped>
+.cancel-toast {
+  position: fixed;
+  top: 82px;
+  right: 24px;
+  z-index: 40;
+  width: min(340px, calc(100vw - 48px));
+  padding: 14px 16px;
+  display: grid;
+  gap: 5px;
+  background: #fff;
+  border: 1px solid var(--line);
+  border-left: 5px solid var(--green);
+  border-radius: 8px;
+  box-shadow: 0 14px 35px #1f403126;
+}
+.cancel-toast strong { color: var(--ink); font-size: 0.98rem; }
+.cancel-toast span { color: var(--muted); font-size: 0.9rem; }
+.toast-enter-active, .toast-leave-active {
+  transition: opacity 0.18s ease, transform 0.18s ease;
+}
+.toast-enter-from, .toast-leave-to { opacity: 0; transform: translateY(-8px); }
+</style>

@@ -69,3 +69,20 @@ test('N05: filter before pagination; pages never exceed twenty or repeat batches
   assert.deepEqual(pages.map(page => page.items.length), [20, 20, 1]);
   assert.deepEqual(pages.flatMap(page => page.items), records.slice(0, 41));
 });
+
+// Confirmed keyword scenarios: substring, case/space normalization, date intersection.
+test('keyword search matches the beginning, middle and end of a batch ID', () => {
+  assert.deepEqual(filterBatches(batches, 'abc-', '', ''), batches.slice(0, 3));
+  assert.deepEqual(filterBatches(batches, 'bC-00', '', ''), batches.slice(0, 3));
+  assert.deepEqual(filterBatches(batches, '002', '', ''), [batches[1]]);
+  assert.deepEqual(filterBatches(batches, '  aBc-002  ', '', ''), [batches[1]]);
+});
+
+test('clearing a keyword keeps the inclusive date filter and preserves the source data', () => {
+  const original = structuredClone(batches);
+  assert.deepEqual(filterBatches(batches, '002', '2026-09-05', '2026-09-07'), [batches[1]]);
+  assert.deepEqual(filterBatches(batches, '   ', '2026-09-05', '2026-09-07'), batches.slice(0, 3));
+  assert.deepEqual(filterBatches(batches, 'missing', '', ''), []);
+  assert.deepEqual(filterBatches(batches, '.*', '', ''), []);
+  assert.deepEqual(batches, original);
+});
