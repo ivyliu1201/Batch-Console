@@ -62,6 +62,18 @@ export function paginate(records, page, pageSize = 20) {
   return { items: records.slice((currentPage - 1) * pageSize, currentPage * pageSize), page: currentPage, total: records.length, pageCount };
 }
 
+export function paginationPages(page, pageCount) {
+  const items = [];
+  let previous = 0;
+  for (let number = 1; number <= pageCount; number++) {
+    if (number !== 1 && number !== pageCount && Math.abs(number - page) > 1) continue;
+    if (previous && number - previous > 1) items.push(`ellipsis-${number}`);
+    items.push(number);
+    previous = number;
+  }
+  return items;
+}
+
 export function createAudit(initial = [], clock = () => new Date().toISOString(), getActor = () => null) {
   const records = initial.slice();
   const listeners = new Set();

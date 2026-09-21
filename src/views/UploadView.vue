@@ -1,5 +1,6 @@
 <script setup>
-import { computed, inject, onBeforeUnmount, ref, watch } from 'vue'
+import { computed, inject, nextTick, onBeforeUnmount, ref, watch } from 'vue'
+import { useModalDialog } from '../lib/modal-dialog.js'
 import { completeUpload, openBatchCount } from '../services/batches.js'
 import { currentUser } from '../services/session.js'
 import {
@@ -75,6 +76,11 @@ const isUploading = ref(false)
 const notification = ref(null)
 const fileInput = ref(null)
 const notificationTimer = ref(null)
+const confirmDialog = ref(null)
+const resultDialog = ref(null)
+const jobTable = ref(null)
+useModalDialog(confirmDialog)
+useModalDialog(resultDialog)
 
 const setLayoutBreadcrumbs = inject('setLayoutBreadcrumbs', null)
 
@@ -110,7 +116,8 @@ const openJob = (job) => {
   currentMode.value = 'create'
 }
 
-const backToList = () => {
+const backToList = async () => {
+  const jobCode = selectedJob.value?.jobCode
   const completedResult = uploadResult.value
   currentMode.value = 'list'
   selectedJob.value = null
@@ -122,6 +129,8 @@ const backToList = () => {
   if (completedResult) {
     showNotification('success', '上傳成功', `已完成 ${completedResult.sourceFileName} 的上傳。`)
   }
+  await nextTick()
+  jobTable.value?.querySelector(`[data-job-code="${jobCode}"]`)?.focus({ preventScroll: true })
 }
 
 const triggerFileSelection = () => {
@@ -139,6 +148,7 @@ const openConfirmModal = () => {
 }
 
 const closeConfirmModal = () => {
+  if (isUploading.value) return
   showConfirmModal.value = false
 }
 
@@ -253,7 +263,7 @@ onBeforeUnmount(() => {
 
       <section class="panel upload-list-panel" aria-label="Upload job list">
         <div class="upload-table-wrap">
-        <table class="upload-job-table">
+        <table ref="jobTable" class="upload-job-table">
           <thead>
             <tr>
               <th>作業代碼</th>
@@ -277,7 +287,7 @@ onBeforeUnmount(() => {
                 </span>
               </td>
               <td>
-                <button class="outline-button" type="button" @click="openJob(job)">
+                <button class="outline-button" type="button" :data-job-code="job.jobCode" @click="openJob(job)">
                   開啟
                 </button>
               </td>
@@ -368,8 +378,8 @@ onBeforeUnmount(() => {
       </div>
     </section>
 
-    <div v-if="showConfirmModal" class="modal-backdrop" role="presentation">
-      <section class="confirm-modal" role="dialog" aria-modal="true" aria-labelledby="confirm-title">
+    <dialog v-if="showConfirmModal" ref="confirmDialog" class="modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="confirm-title" tabindex="-1" @cancel.prevent="closeConfirmModal">
+      <section class="confirm-modal">
         <h2 id="confirm-title">確認上傳</h2>
         <p class="confirm-description">請確認以下上傳資訊。</p>
         <dl class="confirm-info-list">
@@ -389,14 +399,11 @@ onBeforeUnmount(() => {
           </button>
         </div>
       </section>
-    </div>
+    </dialog>
 
-    <div v-if="uploadResult" class="modal-backdrop" role="presentation">
+    <dialog v-if="uploadResult" ref="resultDialog" class="modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="upload-result-title" tabindex="-1" @cancel.prevent="backToList">
       <section
         class="upload-result-modal"
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="upload-result-title"
       >
         <div class="result-heading">
           <div>
@@ -457,7 +464,7 @@ onBeforeUnmount(() => {
           <button class="primary-button" type="button" @click="backToList">完成</button>
         </div>
       </section>
-    </div>
+    </dialog>
   </section>
 </template>
 
@@ -735,6 +742,15 @@ onBeforeUnmount(() => {
 }
 
 .modal-backdrop {
+  width: 100%;
+  height: 100%;
+  max-width: none;
+  max-height: none;
+  border-radius: 0;
+  box-shadow: none;
+  margin: 0;
+  border: 0;
+  color: inherit;
   position: fixed;
   inset: 0;
   z-index: 30;
@@ -743,6 +759,8 @@ onBeforeUnmount(() => {
   padding: 24px;
   background: rgb(20 35 28 / 34%);
 }
+
+.modal-backdrop::backdrop { background: transparent; backdrop-filter: none; }
 
 .confirm-modal {
   width: min(460px, 100%);

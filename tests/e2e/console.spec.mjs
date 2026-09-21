@@ -431,9 +431,9 @@ test('U11 desktop controls and four-column audit text remain readable', async ({
   }
 });
 
-test('U12 saved dataset survives a real browser restart and later date', async ({}, info) => {
+test('U12 saved dataset survives a real browser restart and later date', async ({ headless, launchOptions }, info) => {
   const profile = info.outputPath('browser-profile');
-  let context = await chromium.launchPersistentContext(profile, { headless: true, viewport: { width: 1440, height: 1000 }, baseURL: 'http://127.0.0.1:5173' });
+  let context = await chromium.launchPersistentContext(profile, { ...launchOptions, headless, viewport: { width: 1440, height: 1000 }, baseURL: 'http://127.0.0.1:5173' });
   try {
     let page = await context.newPage(); await freeze(page);
     const first = await upload(page, 'restart-one.txt');
@@ -442,7 +442,7 @@ test('U12 saved dataset survives a real browser restart and later date', async (
     const saved = await snapshot(page);
     expect(saved.batches).toHaveLength(27);
     await context.close();
-    context = await chromium.launchPersistentContext(profile, { headless: true, viewport: { width: 1440, height: 1000 }, baseURL: 'http://127.0.0.1:5173' });
+    context = await chromium.launchPersistentContext(profile, { ...launchOptions, headless, viewport: { width: 1440, height: 1000 }, baseURL: 'http://127.0.0.1:5173' });
     page = await context.newPage(); await freeze(page, '2026-09-24T04:00:00.000Z');
     await page.goto('/search'); await expect(page.locator('#query-table tbody tr')).toHaveCount(20);
     expect(await snapshot(page)).toEqual(saved);

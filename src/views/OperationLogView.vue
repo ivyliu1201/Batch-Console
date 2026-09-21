@@ -3,7 +3,7 @@ import { computed, nextTick, ref, watch } from 'vue';
 import Icon from '../components/Icon.vue';
 import DateRangePicker from '../components/DateRangePicker.vue';
 import { auditEntries } from '../services/audit.js';
-import { filterRecords, paginate } from '../lib/core.js';
+import { filterRecords, paginate, paginationPages } from '../lib/core.js';
 import { displayDate } from '../lib/format.js';
 import { currentUser, actorLabel } from '../services/session.js';
 const isAdmin = computed(() => currentUser.value.role === 'admin');
@@ -20,16 +20,7 @@ const result = computed(() => {
   return paginate(filterRecords(ordered, start.value, end.value), page.value);
 });
 watch(currentUser, () => { page.value = 1; });
-const pages = computed(() => {
-  const items = [];
-  let previous = 0;
-  for (let number = 1; number <= result.value.pageCount; number++) {
-    if (number !== 1 && number !== result.value.pageCount && Math.abs(number - result.value.page) > 1) continue;
-    if (previous && number - previous > 1) items.push(`ellipsis-${number}`);
-    items.push(number); previous = number;
-  }
-  return items;
-});
+const pages = computed(() => paginationPages(result.value.page, result.value.pageCount));
 const rangeDescription = computed(() => !start.value ? '不限日期' : start.value === end.value ? displayDate(start.value) : `${displayDate(start.value)} – ${displayDate(end.value)}`);
 async function changePage(number) {
   page.value = number;

@@ -5,6 +5,13 @@ import { audit } from '../src/services/audit.js';
 import { completeUpload, openBatchCount } from '../src/services/batches.js';
 import { actorLabel, switchRole, currentUser } from '../src/services/session.js';
 import { filterBatches } from '../src/lib/core.js';
+import { initializePersistence, savePendingChanges, storageReady } from '../src/services/persistence.js';
+import { memoryIndexedDB } from './helpers/indexed-db.js';
+
+const storage = memoryIndexedDB();
+globalThis.indexedDB = storage.indexedDB;
+await initializePersistence();
+assert.equal(storageReady.value, true);
 
 test('R05: uploads create unique pending batches with the same IDs in audit and query', async () => {
   const job = { jobCode: 'JOB01', jobName: '範例資料匯入' };
@@ -39,4 +46,40 @@ test('R04: actor display uses a dash only when the name is missing', () => {
   assert.equal(actorLabel({ id: 'legacy' }), '-');
   assert.equal(actorLabel({ name: '經辦人員', role: 'clerk' }), '經辦人員');
   assert.equal(actorLabel({ name: '測試甲', role: 'clerk' }), '測試甲（經辦人員）');
+});
+
+test('A: quota failure and transaction abort do not publish batches or successful audit entries', async () => {
+  await savePendingChanges();
+  for (const fault of ['failNextWrite', 'abortNextWrite']) {
+    const beforeBatches = batches.slice();
+    const beforeRecords = audit.list();
+    const beforeSnapshot = structuredClone(storage.state.snapshot);
+    storage.state[fault] = true;
+    await assert.rejects(completeUpload({jobCode:'JOB01',jobName:'保存測試'}, 'retry.txt', 'retry.DAT', currentUser.value));
+    assert.deepEqual(batches, beforeBatches);
+    assert.deepEqual(audit.list(), beforeRecords);
+    assert.deepEqual(storage.state.snapshot, beforeSnapshot);
+    await completeUpload({jobCode:'JOB01',jobName:'保存測試'}, 'retry.txt', 'retry.DAT', currentUser.value);
+    await savePendingChanges();
+    assert.equal(batches.length, beforeBatches.length + 1);
+    assert.equal(audit.list().length, beforeRecords.length + 1);
+    assert.equal(storage.state.snapshot.batches.length, batches.length);
+    assert.equal(storage.state.snapshot.records.length, audit.list().length);
+  }
+});
+
+test('A: a failed queued upload cannot erase other successful operations or duplicate IDs', async () => {
+  await savePendingChanges();
+  const beforeBatches = batches.length;
+  const beforeRecords = audit.list().length;
+  storage.state.failNextWrite = true;
+  const outcomes = await Promise.allSettled(['failed','first','second'].map(name =>
+    completeUpload({jobCode:'JOB01',jobName:'佇列測試'}, name + '.txt', name + '.DAT', currentUser.value)));
+  assert.deepEqual(outcomes.map(outcome => outcome.status), ['rejected','fulfilled','fulfilled']);
+  assert.notEqual(outcomes[1].value.id, outcomes[2].value.id);
+  await savePendingChanges();
+  assert.equal(batches.length, beforeBatches + 2);
+  assert.equal(audit.list().length, beforeRecords + 2);
+  assert.deepEqual(storage.state.snapshot.records.slice(beforeRecords).map(entry => entry.batchId), outcomes.slice(1).map(outcome => outcome.value.id));
+  assert.equal(storage.state.snapshot.batches.length, batches.length);
 });

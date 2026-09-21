@@ -35,12 +35,32 @@ function saveSnapshot(snapshot) {
   });
 }
 
-function queueSave() {
-  // Store data only: File objects and preview contents never enter this snapshot.
-  const snapshot = JSON.parse(JSON.stringify({ batches, records: audit.list() }));
-  writeQueue = writeQueue.catch(() => {}).then(() => saveSnapshot(snapshot));
-  writeQueue.then(() => { storageError.value = ''; }, () => {
+function enqueueWrite(write) {
+  const pending = writeQueue.catch(() => {}).then(write);
+  writeQueue = pending;
+  pending.then(() => { storageError.value = ''; }, () => {
     storageError.value = '最新資料尚未保存，請勿關閉頁面。請確認瀏覽器允許網站儲存，並有足夠空間。';
+  });
+  return pending;
+}
+
+function queueSave() {
+  // Read at execution time so a queued save cannot overwrite a newer committed operation.
+  enqueueWrite(() => saveSnapshot(JSON.parse(JSON.stringify({ batches, records: audit.list() }))));
+}
+
+export function persistOperation(createOperation) {
+  return enqueueWrite(async () => {
+    // Build inside the queue: each upload allocates its ID after the preceding commit.
+    const { batch, record } = createOperation();
+    const snapshot = JSON.parse(JSON.stringify({
+      batches: batch ? [batch, ...batches] : batches,
+      records: [...audit.list(), record],
+    }));
+    await saveSnapshot(snapshot);
+    if (batch) batches.unshift(batch);
+    audit.restore([...audit.list(), record]);
+    return batch;
   });
 }
 

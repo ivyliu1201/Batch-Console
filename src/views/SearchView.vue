@@ -9,7 +9,7 @@ import StageDetail from '../components/StageDetail.vue';
 import DateRangePicker from '../components/DateRangePicker.vue';
 import OperationModeFilter from '../components/OperationModeFilter.vue';
 import { batches } from '../data/demo.js';
-import { filterBatches, paginate, canViewBatch } from '../lib/core.js';
+import { filterBatches, paginate, paginationPages, canViewBatch } from '../lib/core.js';
 import { stageSummary } from '../lib/status.js';
 import { displayDate } from '../lib/format.js';
 import { currentUser } from '../services/session.js';
@@ -35,18 +35,11 @@ const selectedBatch = computed(() => batches.find(batch => batch.id === selected
 const stage = computed(() => selectedBatch.value?.stages[selectedStage.value]);
 const matches = computed(() => filterBatches(batches, query.value, start.value, end.value, { actor: currentUser.value, mode: mode.value }));
 const result = computed(() => paginate(matches.value, page.value));
-const pages = computed(() => {
-  const items = [];
-  let previous = 0;
-  for (let number = 1; number <= result.value.pageCount; number++) {
-    if (number !== 1 && number !== result.value.pageCount && Math.abs(number - result.value.page) > 1) continue;
-    if (previous && number - previous > 1) items.push('ellipsis-' + number);
-    items.push(number); previous = number;
-  }
-  return items;
-});
+const pages = computed(() => paginationPages(result.value.page, result.value.pageCount));
 const rangeDescription = computed(() => !start.value ? '不限日期' : start.value === end.value ? displayDate(start.value) : displayDate(start.value) + ' – ' + displayDate(end.value));
 function selectBatch(id) {
+  id = Array.isArray(id) ? id[0] : id;
+  id = typeof id === 'string' ? id : '';
   selectedId.value = id || '';
   searchExpanded.value = false;
   feedback.value = '';

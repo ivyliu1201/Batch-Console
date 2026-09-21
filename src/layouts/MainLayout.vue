@@ -3,6 +3,7 @@ import { computed, onBeforeUnmount, onMounted, provide, ref, watch } from 'vue';
 import { RouterView, useRoute } from 'vue-router';
 import AppHeader from '../components/AppHeader.vue';
 import AppSidebar from '../components/AppSidebar.vue';
+import { storageError } from '../services/persistence.js';
 const route = useRoute();
 const compactLayout = window.matchMedia('(max-width: 680px)');
 const collapsed = ref(compactLayout.matches);
@@ -46,6 +47,7 @@ function toggleSidebar() {
             <span v-if="index > 0">/</span>{{ item }}
           </template>
         </div>
+        <p v-if="storageError" class="storage-error" role="alert">{{ storageError }}</p>
         <RouterView />
         <footer class="workspace-footer"><span>Batch Console</span></footer>
       </div>

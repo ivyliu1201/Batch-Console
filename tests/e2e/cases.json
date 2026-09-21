@@ -180,5 +180,148 @@
       "U14 switching any role returns to its default workbench from every page"
     ],
     "projectName": "chromium"
+  },
+  {
+    "scenarioId": "R01-upload",
+    "viewportId": "desktop",
+    "file": "review.spec.mjs",
+    "titlePath": [
+      "review.spec.mjs",
+      "R01 upload: storage failure must not leave a success record"
+    ],
+    "browser": "chromium",
+    "routeId": "upload",
+    "projectName": "chromium",
+    "stateId": "storage-failure-retry"
+  },
+  {
+    "scenarioId": "R01-download",
+    "viewportId": "desktop",
+    "file": "review.spec.mjs",
+    "titlePath": [
+      "review.spec.mjs",
+      "R01 download: storage failure must not leave a success record"
+    ],
+    "browser": "chromium",
+    "routeId": "download",
+    "projectName": "chromium",
+    "stateId": "storage-failure-retry"
+  },
+  {
+    "scenarioId": "R01-transfer",
+    "viewportId": "desktop",
+    "file": "review.spec.mjs",
+    "titlePath": [
+      "review.spec.mjs",
+      "R01 transfer: storage failure must not leave a success record"
+    ],
+    "browser": "chromium",
+    "routeId": "transfer",
+    "projectName": "chromium",
+    "stateId": "storage-failure-retry"
+  },
+  {
+    "scenarioId": "R02-upload",
+    "viewportId": "desktop",
+    "file": "review.spec.mjs",
+    "titlePath": [
+      "review.spec.mjs",
+      "R02 upload: modal keyboard focus must stay inside"
+    ],
+    "browser": "chromium",
+    "routeId": "upload",
+    "projectName": "chromium",
+    "stateId": "modal-focus"
+  },
+  {
+    "scenarioId": "R02-download",
+    "viewportId": "desktop",
+    "file": "review.spec.mjs",
+    "titlePath": [
+      "review.spec.mjs",
+      "R02 download: modal keyboard focus must stay inside"
+    ],
+    "browser": "chromium",
+    "routeId": "download",
+    "projectName": "chromium",
+    "stateId": "modal-focus"
+  },
+  {
+    "scenarioId": "R02-transfer",
+    "viewportId": "desktop",
+    "file": "review.spec.mjs",
+    "titlePath": [
+      "review.spec.mjs",
+      "R02 transfer: modal keyboard focus must stay inside"
+    ],
+    "browser": "chromium",
+    "routeId": "transfer",
+    "projectName": "chromium",
+    "stateId": "modal-focus"
+  },
+  {
+    "scenarioId": "R03",
+    "viewportId": "desktop",
+    "file": "review.spec.mjs",
+    "titlePath": [
+      "review.spec.mjs",
+      "R03 repeated batch URL parameter should not crash search"
+    ],
+    "browser": "chromium",
+    "routeId": "search",
+    "projectName": "chromium",
+    "stateId": "review"
+  },
+  {
+    "scenarioId": "R04",
+    "viewportId": "desktop",
+    "file": "review.spec.mjs",
+    "titlePath": [
+      "review.spec.mjs",
+      "R04 HTML in file preview is displayed as text"
+    ],
+    "browser": "chromium",
+    "routeId": "upload",
+    "projectName": "chromium",
+    "stateId": "review"
+  },
+  {
+    "routeId": "console",
+    "viewportId": "desktop",
+    "browser": "chromium",
+    "scenarioId": "R05",
+    "stateId": "verified",
+    "file": "review.spec.mjs",
+    "titlePath": [
+      "review.spec.mjs",
+      "R05 query and audit keep the same pagination boundaries"
+    ],
+    "projectName": "chromium"
+  },
+  {
+    "routeId": "upload",
+    "viewportId": "desktop",
+    "browser": "chromium",
+    "scenarioId": "R06-upload",
+    "stateId": "verified",
+    "file": "review.spec.mjs",
+    "titlePath": [
+      "review.spec.mjs",
+      "R06 upload: busy confirmation and preview keep keyboard behavior"
+    ],
+    "projectName": "chromium"
+  },
+  {
+    "routeId": "transfer",
+    "viewportId": "desktop",
+    "browser": "chromium",
+    "scenarioId": "R06-transfer",
+    "stateId": "verified",
+    "file": "review.spec.mjs",
+    "titlePath": [
+      "review.spec.mjs",
+      "R06 transfer: busy confirmation and preview keep keyboard behavior"
+    ],
+    "projectName": "chromium"
   }
 ]

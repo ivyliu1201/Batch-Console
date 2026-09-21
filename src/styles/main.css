@@ -148,7 +148,7 @@ dialog{padding:16px;width:calc(100vw - 24px)}.date-options{flex-direction:column
 .audit-table.with-actor th:nth-child(3){width:42%}
 .audit-table.with-actor th:nth-child(4){width:20%}
 .audit-actor{color:var(--ink);font-size:12px}
-.storage-error{position:relative;z-index:60;margin:0;padding:16px;background:var(--red-soft);color:var(--red);font-weight:600}
+.storage-error{position:relative;margin:0;padding:16px;background:var(--red-soft);color:var(--red);font-weight:600}
 
 .audit-scroll{overflow-x:auto;max-width:100%}
 .audit-scroll:focus-visible{outline:2px solid var(--green);outline-offset:-2px}

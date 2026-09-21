@@ -1,8 +1,9 @@
 <script setup>
-import { computed, inject, onBeforeUnmount, onMounted, ref, watch } from 'vue'
-import { audit } from '../services/audit.js'
+import { computed, inject, nextTick, onBeforeUnmount, ref, watch } from 'vue'
+import { useModalDialog } from '../lib/modal-dialog.js'
+import { createOperationRecord } from '../services/audit.js'
 import { currentUser } from '../services/session.js'
-import { savePendingChanges } from '../services/persistence.js'
+import { persistOperation } from '../services/persistence.js'
 import {
   filePreviewModes,
   formatFileSize,
@@ -56,6 +57,11 @@ const isTransferring = ref(false)
 const notification = ref(null)
 const fileInput = ref(null)
 const notificationTimer = ref(null)
+const confirmDialog = ref(null)
+const resultDialog = ref(null)
+const jobTable = ref(null)
+useModalDialog(confirmDialog)
+useModalDialog(resultDialog)
 
 const setLayoutBreadcrumbs = inject('setLayoutBreadcrumbs', null)
 
@@ -91,7 +97,8 @@ const openJob = (job) => {
   currentMode.value = 'create'
 }
 
-const backToList = () => {
+const backToList = async () => {
+  const jobCode = selectedJob.value?.jobCode
   const completedResult = transferResult.value
   currentMode.value = 'list'
   selectedJob.value = null
@@ -103,6 +110,8 @@ const backToList = () => {
   if (completedResult) {
     showNotification('success', '轉送成功', `已完成 ${completedResult.sourceFileName} 的轉送。`)
   }
+  await nextTick()
+  jobTable.value?.querySelector(`[data-job-code="${jobCode}"]`)?.focus({ preventScroll: true })
 }
 
 const triggerFileSelection = () => {
@@ -120,6 +129,7 @@ const openConfirmModal = () => {
 }
 
 const closeConfirmModal = () => {
+  if (isTransferring.value) return
   showConfirmModal.value = false
 }
 
@@ -173,8 +183,8 @@ const confirmTransfer = async () => {
     }
 
     const requestFileName = formatRequestFileName(job.fileTypeCode, timestamp, serial)
-    audit.record('轉送', `轉送成功：${job.jobName}；來源檔案：${file.name}；請求檔案：${requestFileName}`, null, actor)
-    await savePendingChanges()
+    const record = createOperationRecord('轉送', `轉送成功：${job.jobName}；來源檔案：${file.name}；請求檔案：${requestFileName}`, null, actor)
+    await persistOperation(() => ({ record }))
     transferResult.value = {
       jobName: job.jobName,
       sourceFileName: file.name,
@@ -192,12 +202,6 @@ const confirmTransfer = async () => {
   }
 }
 
-const handleKeydown = (event) => {
-  if (event.key === 'Escape' && showConfirmModal.value) {
-    closeConfirmModal()
-  }
-}
-
 watch(
   currentMode,
   (mode) => {
@@ -210,13 +214,8 @@ watch(
   { immediate: true },
 )
 
-onMounted(() => {
-  window.addEventListener('keydown', handleKeydown)
-})
-
 onBeforeUnmount(() => {
   setLayoutBreadcrumbs?.(null)
-  window.removeEventListener('keydown', handleKeydown)
   clearNotification()
 })
 </script>
@@ -245,7 +244,7 @@ onBeforeUnmount(() => {
 
       <section class="panel transfer-list-panel" aria-label="Transfer job list">
         <div class="transfer-table-wrap">
-        <table class="transfer-job-table">
+        <table ref="jobTable" class="transfer-job-table">
           <thead>
             <tr>
               <th>作業代碼</th>
@@ -260,7 +259,7 @@ onBeforeUnmount(() => {
               <td>{{ job.fileTypeCode }}</td>
               <td>{{ job.jobName }}</td>
               <td>
-                <button class="outline-button" type="button" @click="openJob(job)">
+                <button class="outline-button" type="button" :data-job-code="job.jobCode" @click="openJob(job)">
                   開啟
                 </button>
               </td>
@@ -351,8 +350,8 @@ onBeforeUnmount(() => {
       </div>
     </section>
 
-    <div v-if="showConfirmModal" class="modal-backdrop" role="presentation">
-      <section class="confirm-modal" role="dialog" aria-modal="true" aria-labelledby="confirm-title">
+    <dialog v-if="showConfirmModal" ref="confirmDialog" class="modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="confirm-title" tabindex="-1" @cancel.prevent="closeConfirmModal">
+      <section class="confirm-modal">
         <h2 id="confirm-title">確認轉送</h2>
         <p class="confirm-description">請確認以下轉送資訊。</p>
         <dl class="confirm-info-list">
@@ -372,14 +371,11 @@ onBeforeUnmount(() => {
           </button>
         </div>
       </section>
-    </div>
+    </dialog>
 
-    <div v-if="transferResult" class="modal-backdrop" role="presentation">
+    <dialog v-if="transferResult" ref="resultDialog" class="modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="transfer-result-title" tabindex="-1" @cancel.prevent="backToList">
       <section
         class="transfer-result-modal"
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="transfer-result-title"
       >
         <div class="result-heading">
           <div>
@@ -436,7 +432,7 @@ onBeforeUnmount(() => {
           <button class="primary-button" type="button" @click="backToList">完成</button>
         </div>
       </section>
-    </div>
+    </dialog>
   </section>
 </template>
 
@@ -703,6 +699,15 @@ onBeforeUnmount(() => {
 }
 
 .modal-backdrop {
+  width: 100%;
+  height: 100%;
+  max-width: none;
+  max-height: none;
+  border-radius: 0;
+  box-shadow: none;
+  margin: 0;
+  border: 0;
+  color: inherit;
   position: fixed;
   inset: 0;
   z-index: 30;
@@ -711,6 +716,8 @@ onBeforeUnmount(() => {
   padding: 24px;
   background: rgb(20 35 28 / 34%);
 }
+
+.modal-backdrop::backdrop { background: transparent; backdrop-filter: none; }
 
 .confirm-modal {
   width: min(460px, 100%);

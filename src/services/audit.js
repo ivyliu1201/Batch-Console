@@ -10,3 +10,8 @@ export const audit = createAudit(initialRecords, taipeiNow, () => currentUser.va
 const entries = shallowRef(audit.list());
 audit.subscribe(() => { entries.value = audit.list(); });
 export const auditEntries = readonly(entries);
+
+// Prepare an entry without publishing success before its storage transaction commits.
+export function createOperationRecord(page, action, batchId = null, actor = currentUser.value) {
+  return { page, action, batchId, time: taipeiNow(), ...(actor ? { actor: { ...actor } } : {}) };
+}

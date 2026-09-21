@@ -1,7 +1,8 @@
 <script setup>
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
-import { audit } from '../services/audit.js'
-import { savePendingChanges } from '../services/persistence.js'
+import { computed, onBeforeUnmount, ref } from 'vue'
+import { useModalDialog } from '../lib/modal-dialog.js'
+import { createOperationRecord } from '../services/audit.js'
+import { persistOperation } from '../services/persistence.js'
 
 const jobTypes = [
   {
@@ -81,6 +82,9 @@ const selectedIds = ref(new Set())
 const showConfirmModal = ref(false)
 const notification = ref(null)
 const notificationTimer = ref(null)
+const confirmDialog = ref(null)
+const isDownloading = ref(false)
+useModalDialog(confirmDialog)
 
 const totalPages = computed(() => Math.ceil(downloadFiles.length / pageSize))
 
@@ -128,6 +132,7 @@ const openConfirmModal = () => {
 }
 
 const closeConfirmModal = () => {
+  if (isDownloading.value) return
   showConfirmModal.value = false
 }
 
@@ -147,41 +152,34 @@ const showNotification = (type, title, message) => {
 }
 
 const confirmDownload = async () => {
+  if (!hasSelection.value || isDownloading.value) return
   const shouldFail = selectedFiles.value.some((file) =>
     file.fileName.toLowerCase().includes('fail'),
   )
 
-  showConfirmModal.value = false
-
   if (shouldFail) {
+    showConfirmModal.value = false
     showNotification('error', '下載失敗', '檔案下載失敗，請稍後重新嘗試。')
     return
   }
 
   const downloadedCount = selectedCount.value
-  audit.record('下傳', `下傳成功：${downloadedCount} 筆檔案；${selectedFiles.value.map((file) => file.fileName).join('、')}`)
+  isDownloading.value = true
+  const record = createOperationRecord('下傳', `下傳成功：${downloadedCount} 筆檔案；${selectedFiles.value.map((file) => file.fileName).join('、')}`)
   try {
-    await savePendingChanges()
+    await persistOperation(() => ({ record }))
   } catch {
     showNotification('error', '下載失敗', '無法完成作業紀錄保存，請確認瀏覽器儲存狀態。')
     return
+  } finally {
+    isDownloading.value = false
+    showConfirmModal.value = false
   }
   selectedIds.value = new Set()
   showNotification('success', '下載成功', `已成功下載 ${downloadedCount} 筆檔案。`)
 }
 
-const handleKeydown = (event) => {
-  if (event.key === 'Escape' && showConfirmModal.value) {
-    closeConfirmModal()
-  }
-}
-
-onMounted(() => {
-  window.addEventListener('keydown', handleKeydown)
-})
-
 onBeforeUnmount(() => {
-  window.removeEventListener('keydown', handleKeydown)
   if (notificationTimer.value) window.clearTimeout(notificationTimer.value)
 })
 </script>
@@ -287,8 +285,8 @@ onBeforeUnmount(() => {
       </section>
     </section>
 
-    <div v-if="showConfirmModal" class="modal-backdrop" role="presentation">
-      <section class="confirm-modal" role="dialog" aria-modal="true" aria-labelledby="confirm-title">
+    <dialog v-if="showConfirmModal" ref="confirmDialog" class="modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="confirm-title" tabindex="-1" @cancel.prevent="closeConfirmModal">
+      <section class="confirm-modal">
         <div class="modal-header">
           <h2 id="confirm-title">確認下載</h2>
           <p>已選取 {{ selectedCount }} 筆檔案</p>
@@ -314,13 +312,13 @@ onBeforeUnmount(() => {
         </div>
 
         <div class="modal-actions">
-          <button class="text-button" type="button" @click="closeConfirmModal">取消</button>
-          <button class="primary-button" type="button" @click="confirmDownload">
-            確認下載
+          <button class="text-button" type="button" :disabled="isDownloading" @click="closeConfirmModal">取消</button>
+          <button class="primary-button" type="button" :disabled="isDownloading" @click="confirmDownload">
+            {{ isDownloading ? '處理中...' : '確認下載' }}
           </button>
         </div>
       </section>
-    </div>
+    </dialog>
   </section>
 </template>
 
@@ -521,6 +519,15 @@ onBeforeUnmount(() => {
 }
 
 .modal-backdrop {
+  width: 100%;
+  height: 100%;
+  max-width: none;
+  max-height: none;
+  border-radius: 0;
+  box-shadow: none;
+  margin: 0;
+  border: 0;
+  color: inherit;
   position: fixed;
   inset: 0;
   z-index: 30;
@@ -529,6 +536,8 @@ onBeforeUnmount(() => {
   padding: 24px;
   background: rgb(20 35 28 / 34%);
 }
+
+.modal-backdrop::backdrop { background: transparent; backdrop-filter: none; }
 
 .confirm-modal {
   width: min(680px, 100%);
