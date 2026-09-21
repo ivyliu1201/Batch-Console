@@ -1,6 +1,7 @@
 <script setup>
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { audit } from '../services/audit.js'
+import { savePendingChanges } from '../services/persistence.js'
 
 const jobTypes = [
   {
@@ -145,7 +146,7 @@ const showNotification = (type, title, message) => {
   }, 3000)
 }
 
-const confirmDownload = () => {
+const confirmDownload = async () => {
   const shouldFail = selectedFiles.value.some((file) =>
     file.fileName.toLowerCase().includes('fail'),
   )
@@ -159,6 +160,12 @@ const confirmDownload = () => {
 
   const downloadedCount = selectedCount.value
   audit.record('下傳', `下傳成功：${downloadedCount} 筆檔案；${selectedFiles.value.map((file) => file.fileName).join('、')}`)
+  try {
+    await savePendingChanges()
+  } catch {
+    showNotification('error', '下載失敗', '無法完成作業紀錄保存，請確認瀏覽器儲存狀態。')
+    return
+  }
   selectedIds.value = new Set()
   showNotification('success', '下載成功', `已成功下載 ${downloadedCount} 筆檔案。`)
 }
@@ -333,6 +340,7 @@ onBeforeUnmount(() => {
 
 .download-section {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: 22px;
 }
 

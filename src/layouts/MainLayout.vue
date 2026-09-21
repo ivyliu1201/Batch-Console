@@ -47,7 +47,7 @@ function toggleSidebar() {
           </template>
         </div>
         <RouterView />
-        <footer class="workspace-footer"><span>Batch Console</span><span>Vue 畫面確認版</span></footer>
+        <footer class="workspace-footer"><span>Batch Console</span></footer>
       </div>
     </main>
   </div>

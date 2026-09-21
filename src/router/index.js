@@ -12,12 +12,12 @@ const router = createRouter({
   routes: [{
     path: '/', component: MainLayout, redirect: '/workbench',
     children: [
-      { path: 'workbench', name: 'workbench', component: WorkbenchView, meta: { title: '工作台', prototypeKey: 'dashboard' } },
-      { path: 'search', name: 'search', component: SearchView, meta: { title: '查詢批次', prototypeKey: 'query' } },
+      { path: 'workbench', name: 'workbench', component: WorkbenchView, meta: { title: '工作台', prototypeKey: 'dashboard', breadcrumb: ['Batch-Console', '工作台'] } },
+      { path: 'search', name: 'search', component: SearchView, meta: { title: '查詢批次', prototypeKey: 'query', breadcrumb: ['Batch-Console', '查詢批次'] } },
       { path: 'operation/upload', name: 'operation-upload', component: UploadView, meta: { title: '上傳', prototypeKey: 'upload', breadcrumb: ['作業處理', '上傳'] } },
       { path: 'operation/download', name: 'operation-download', component: DownloadView, meta: { title: '下傳', prototypeKey: 'download', breadcrumb: ['作業處理', '下傳'] } },
       { path: 'operation/transfer', name: 'operation-transfer', component: TransferView, meta: { title: '轉送', prototypeKey: 'transfer', breadcrumb: ['作業處理', '轉送'] } },
-      { path: 'logs', name: 'logs', component: OperationLogView, meta: { title: '操作紀錄', prototypeKey: 'audit' } }
+      { path: 'logs', name: 'logs', component: OperationLogView, meta: { title: '操作紀錄', prototypeKey: 'audit', breadcrumb: ['Batch-Console', '操作紀錄'] } }
     ]
   }],
   scrollBehavior(to, from) { if (to.name !== from.name) return { top: 0 }; }

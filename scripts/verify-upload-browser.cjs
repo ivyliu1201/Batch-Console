@@ -186,10 +186,12 @@ async function main(operation, label, fileTypeCode) {
       assert.deepEqual(result.sequence, { dateKey: '20260907', lastSerial: 1 })
     })
     const completedAudit = await evaluate('window.BatchConsoleAudit.list()')
-    check('successful file operation records exactly one filename and timestamp without inventing a batch ID', () => {
+    check('successful file operation records one entry with the related batch when uploading', () => {
       assert.equal(completedAudit.length, initialAuditCount + 1)
       const entry = completedAudit.at(-1)
-      assert.equal(entry.page, label); assert.equal(entry.batchId, null)
+      assert.equal(entry.page, label);
+      if (operation === 'upload') assert.match(entry.batchId, /^ABC-20260907-\d{3,}$/);
+      else assert.equal(entry.batchId, null)
       assert.ok(entry.action.includes('source.pdf')); assert.ok(entry.action.includes(result.request))
       assert.equal(entry.time, '2026-09-07T17:00:00+08:00')
     })
@@ -268,11 +270,11 @@ async function main(operation, label, fileTypeCode) {
     await waitFor('document.querySelector(".audit-table tbody tr")')
     const auditRow = await evaluate(`(() => {
       const row=document.querySelector('.audit-table tbody tr');
-      return {batch:row.querySelector('.batch-code').textContent,action:row.querySelector('.audit-action').textContent,source:row.querySelector('.audit-source').textContent,time:row.querySelector('.audit-time').textContent};
+      return {batch:row.querySelector('.batch-code').textContent,action:row.querySelector('.audit-action').textContent,source:row.querySelector('.audit-source')?.textContent ?? null,time:row.querySelector('.audit-time').textContent};
     })()`)
-    check('operation log page displays the new operation first with an empty batch reference', () => {
-      assert.equal(auditRow.batch, '—'); assert.equal(auditRow.action, completedAudit.at(-1).action)
-      assert.equal(auditRow.source, label); assert.match(auditRow.time, /2026\/09\/07.*17:00:00/)
+    check('operation log displays the new operation first with its original batch reference', () => {
+      assert.equal(auditRow.batch, completedAudit.at(-1).batchId || '—'); assert.equal(auditRow.action, completedAudit.at(-1).action)
+      assert.equal(auditRow.source, null); assert.equal(completedAudit.at(-1).page, label); assert.match(auditRow.time, /2026\/09\/07.*17:00:00/)
     })
     await screenshot(`${operation}-audit-record`)
 

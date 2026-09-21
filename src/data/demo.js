@@ -1,6 +1,7 @@
 import { reactive } from 'vue';
 import { pad } from '../lib/format.js';
 import { pipelineDefinition } from '../lib/core.js';
+import { users } from '../services/session.js';
 
 const directionNames = { bidirectional: '雙向', upload: '單向上傳', download: '單向下傳' };
 
@@ -37,7 +38,10 @@ function makeBatch(number, name, mode, state, issueKey, direction = 'bidirection
     });
     return { ...definition, attempts, issue: stageStatus === 'stopped' ? issue : null };
   });
-  return { id: `ABC-202609${pad(day)}-${String(number).padStart(3, '0')}`, name, mode, state, direction, flow: directionNames[direction], updated: `2026-09-${pad(day)}T${hour}:${pad(Number(minute) + (state === 'stopped' ? 2 : 0))}:18+08:00`, stages };
+  return { id: `ABC-202609${pad(day)}-${String(number).padStart(3, '0')}`, name, mode, state, direction, flow: directionNames[direction], updated: `2026-09-${pad(day)}T${hour}:${pad(Number(minute) + (state === 'stopped' ? 2 : 0))}:18+08:00`, stages,
+    createdBy: mode === '手動' ? 'clerk' : 'system',
+    reviewedBy: stages.some(stage => stage.id === 'review' && stage.status === 'success') ? 'supervisor' : null,
+  };
 }
 
 export const batches = reactive([
@@ -70,9 +74,10 @@ export const initialRecords = batches.flatMap(batch => {
   const records = [{
     page: batch.mode === '自動' ? '批次接收' : manualUpload ? '上傳' : '下傳',
     action: manualUpload ? '上傳檔案，建立手動批次' : `建立${batch.mode}批次`,
-    batchId: batch.id, time: `${day}T08:00:00+08:00`
+    batchId: batch.id, time: `${day}T08:00:00+08:00`,
+    actor: batch.mode === '手動' ? { ...users[0] } : { id: 'system', name: '系統', role: 'system' },
   }];
   const review = batch.stages.find(stage => stage.id === 'review' && stage.status === 'success');
-  if (review) records.push({ page: '審核', action: '審核完成，允許批次執行', batchId: batch.id, time: `${day}T${review.time}+08:00` });
+  if (review) records.push({ page: '審核', action: '審核完成，允許批次執行', batchId: batch.id, time: `${day}T${review.time}+08:00`, actor: { ...users[1] } });
   return records;
 });

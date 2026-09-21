@@ -85,15 +85,19 @@ async function main() {
   async function layout(name) {
     const result = await evaluate(`(() => {
       const visible = element => element.getClientRects().length && getComputedStyle(element).visibility !== 'hidden';
-      const elements = [...document.querySelectorAll('main button,main input,main a,.pipeline,.stats,.audit-table,.batch-table,.diagnosis')].filter(visible);
+      const elements = [...document.querySelectorAll('main button,main input,main select,main a,.pipeline,.audit-scroll,.stats,.audit-table:not(.with-actor),.batch-table,.diagnosis')].filter(visible).filter(element => innerWidth >= 1280 || !element.closest('.pipeline'));
       const outside = elements.filter(element => { const box = element.getBoundingClientRect(); return box.left < -1 || box.right > innerWidth + 1; }).map(element => element.outerHTML.slice(0, 150));
-      const pipelines = [...document.querySelectorAll('.pipeline')].filter(visible).map(element => ({clientWidth:element.clientWidth,scrollWidth:element.scrollWidth,stages:element.children.length}));
+      const pipelines = innerWidth < 1280 ? [] : [...document.querySelectorAll('.pipeline')].filter(visible).map(element => ({clientWidth:element.clientWidth,scrollWidth:element.scrollWidth,stages:element.children.length,tops:[...element.children].map(stage=>stage.getBoundingClientRect().top),scrollable:getComputedStyle(element.parentElement).overflowX==='auto'}));
       return {width:innerWidth,height:innerHeight,bodyWidth:document.documentElement.scrollWidth,outside,pipelines};
     })()`);
     report.layouts.push({ name, ...result });
     assert.ok(result.bodyWidth <= result.width, `${name}: horizontal page overflow`);
     assert.deepEqual(result.outside, [], `${name}: controls outside viewport`);
-    for (const pipeline of result.pipelines) assert.ok(pipeline.scrollWidth <= pipeline.clientWidth, `${name}: pipeline scrolls horizontally`);
+    for (const pipeline of result.pipelines) {
+      assert.ok(Math.max(...pipeline.tops)-Math.min(...pipeline.tops)<2, `${name}: pipeline stages wrap`);
+      assert.ok(!pipeline.scrollable, `${name}: desktop pipeline must not use a horizontal scroll region`);
+      assert.ok(pipeline.scrollWidth <= pipeline.clientWidth + 1, `${name}: all desktop pipeline stages must fit`);
+    }
   }
   async function calendarLayout(name) {
     const result = await evaluate(`(() => {
@@ -110,6 +114,8 @@ async function main() {
     // Freeze only this isolated test page to the approved September demo date.
     await send('Page.addScriptToEvaluateOnNewDocument', { source: `(() => { const NativeDate=Date; class DemoDate extends NativeDate { constructor(...args){super(...(args.length?args:['2026-09-07T09:00:00.000Z']));} static now(){return new NativeDate('2026-09-07T09:00:00.000Z').getTime();} } window.Date=DemoDate; })();` });
     await viewport(1440, 1000);
+    await send('Page.navigate', { url: 'about:blank' });
+    await send('Storage.clearDataForOrigin', { origin: 'http://127.0.0.1:5173', storageTypes: 'indexeddb,local_storage' });
     await send('Page.navigate', { url: 'http://127.0.0.1:5173' });
     await waitFor('document.readyState === "complete" && document.querySelectorAll(".stat-number").length === 4');
     const initial = await evaluate(`({stats:[...document.querySelectorAll('.stat-number')].map(e=>e.textContent),rows:document.querySelectorAll('#dashboard-table tbody tr').length,modes:[...document.querySelectorAll('#dashboard-table .mode-label')].map(e=>e.textContent)})`);
@@ -147,11 +153,11 @@ async function main() {
     await click('#dashboard-table [data-batch="ABC-20260907-001"]');
     await waitFor('document.querySelectorAll(".stage").length === 6');
     const failure = await evaluate(`({count:document.querySelectorAll('.stage').length,summary:document.querySelector('.attempt-count').textContent,reason:document.querySelector('.diagnosis.error').textContent,solution:document.querySelector('.solution').textContent,attempts:document.querySelectorAll('.attempt-row').length,buttons:[...document.querySelectorAll('button')].filter(e=>e.getClientRects().length).map(e=>e.textContent)})`);
-    check('B02/B03/B04 full pipeline, stopped third execution, remedies and no manual retry', () => { assert.equal(failure.count, 6); assert.match(failure.summary, /執行 3 次.*自動重試 2 次/); assert.match(failure.reason, /第三次仍失敗/); assert.match(failure.solution, /查證/); assert.equal(failure.attempts, 3); assert.ok(!failure.buttons.some(text => /人工重試|確認.*[Rr]etry/.test(text))); });
+    check('B02/B03/B04 full pipeline, stopped third execution, remedies and no manual retry', () => { assert.equal(failure.count, 6); assert.match(failure.summary, /執行 3 次.*自動重試 2 次/); assert.match(failure.reason, /第三次仍失敗/); assert.match(failure.solution, /問題位置[\s\S]*問題說明[\s\S]*聯絡人員[\s\S]*蕭文賢/); assert.equal(failure.attempts, 3); assert.ok(!failure.buttons.some(text => /人工重試|確認.*[Rr]etry/.test(text))); });
     const stageNames = await evaluate('[...document.querySelectorAll(".stage-name")].map(e=>e.textContent)');
     check('B11 pipeline uses all six complete stage names in order', () => assert.deepEqual(stageNames, ['接收前端來源檔', '處理前端來源檔', '傳送後端來源檔', '接收後端結果檔', '處理後端結果檔', '傳送前端結果檔']));
     const detailEmphasis = await evaluate(`(() => {
-      const selectors=['#query-title','.detail-identity h2','.metadata-label','.stage-name','.diagnosis h3','.error-code','.diagnosis.error p strong','.solution li strong','.attempt-row strong','.log-title'];
+      const selectors=['#query-title','.detail-identity h2','.metadata-label','.stage-name','.diagnosis h3','.error-code','.diagnosis.error p strong','.solution-details dt','.attempt-row strong','.log-title'];
       return selectors.map(selector=>{const e=document.querySelector(selector);return {selector,bold:!!e&&Number(getComputedStyle(e).fontWeight)>=700};});
     })()`);
     check('B15 headings and diagnosis highlights are bold',()=>assert.deepEqual(detailEmphasis.filter(item=>!item.bold),[]));
@@ -193,7 +199,7 @@ async function main() {
     await navigate('[data-route="audit"]');
     await waitFor('!document.querySelector("#audit-view").hidden');
     const auditInitial = await evaluate(`({columns:[...document.querySelectorAll('.audit-table th')].map(e=>e.textContent),rows:document.querySelectorAll('.audit-table tbody tr').length,range:document.querySelector('#audit-range-description').textContent,text:document.querySelector('#audit-table').textContent})`);
-    check('B05/B06 audit captures batch changes, excludes searches and opens without a date filter', () => { assert.deepEqual(auditInitial.columns, ['批次編號', '操作紀錄', '時間']); assert.equal(auditInitial.rows, 20); assert.match(auditInitial.range, /不限日期/); assert.doesNotMatch(auditInitial.text, /NOT-FOUND/); });
+    check('B05/B06 audit captures batch changes, excludes searches and opens without a date filter', () => { assert.deepEqual(auditInitial.columns, ['批次編號', '操作人員', '操作紀錄', '時間']); assert.equal(auditInitial.rows, 20); assert.match(auditInitial.range, /不限日期/); assert.doesNotMatch(auditInitial.text, /NOT-FOUND/); });
     const firstPageTimes = await evaluate('[...document.querySelectorAll(".audit-time")].map(e=>e.textContent)');
     check('B06 newest records are displayed first', () => assert.deepEqual(firstPageTimes, firstPageTimes.slice().sort().reverse()));
     await screenshot('04-audit-desktop'); await layout('audit-desktop');
@@ -305,7 +311,7 @@ async function main() {
         const flow = await evaluate(`({names:[...document.querySelectorAll('.stage-name')].map(e=>e.textContent),waiting:document.querySelectorAll('.stage.waiting').length,cancel:!!document.querySelector('#cancel-upload')})`);
         const [,mode,direction,waiting] = expectedFlows.find(item=>item[0]===id);
         const names = [...(mode==='手動'&&direction!=='download'?['上傳檔案','審核完成']:[]),...directions[direction]];
-        check(`N02 every workbench batch ${id} shows its entire workflow`,()=>{assert.deepEqual(flow.names,names);assert.equal(flow.waiting,waiting);assert.equal(flow.cancel,state==='reviewing');});
+        check(`N02 every workbench batch ${id} shows its entire workflow`,()=>{assert.deepEqual(flow.names,names);assert.equal(flow.waiting,waiting);assert.equal(flow.cancel,false);});
         visitedBatches.push(id);
         if (id.endsWith('002')) await screenshot('20-query-failure-002');
         await navigate('[data-route="dashboard"]');
@@ -313,7 +319,7 @@ async function main() {
     }
     check('N02 all twenty-five batches checked without omissions',()=>assert.deepEqual(visitedBatches.slice().sort(),expectedFlows.map(item=>item[0]).sort()));
 
-    // New confirmed scenarios: review workflow, cancellation, query dates and paging.
+    // Confirmed review-only detail, query dates and paging.
     await click('#dashboard-stats [data-status="reviewing"]');
     const reviewCard = await evaluate(`({rows:document.querySelectorAll('#dashboard-table tbody tr').length,statuses:[...document.querySelectorAll('#dashboard-table .badge')].map(e=>e.textContent),color:getComputedStyle(document.querySelector('.stat.reviewing .stat-number')).color})`);
     check('N01 brown review card filters two pending manual uploads',()=>{assert.equal(reviewCard.rows,2);assert.deepEqual(reviewCard.statuses,['審核中','審核中']);assert.equal(reviewCard.color,'rgb(121, 84, 59)');});
@@ -324,49 +330,13 @@ async function main() {
     await click('[data-stage="1"]');
     const reviewStage = await evaluate('document.querySelector("#stage-detail").textContent');
     check('N02 review is a separate preparation stage, not an execution attempt',()=>{assert.match(reviewStage,/手動作業前置階段/);assert.match(reviewStage,/等待審核/);assert.doesNotMatch(reviewStage,/執行 1 次/);});
-    await click('#cancel-upload'); await screenshot('23-cancel-confirmation');
-    await click('#keep-upload'); await waitFor('!document.querySelector("#cancel-dialog").open');
-    check('N03 returning from confirmation preserves the pending batch',()=>{});
-    const stillReview = await evaluate('document.querySelector(".detail-actions .badge").textContent');
-    assert.equal(stillReview,'審核中');
-    const dismissedCancelNotice = await evaluate('!!document.querySelector(".cancel-toast")');
-    check('Dismissing cancellation does not show a success notification', () => assert.equal(dismissedCancelNotice, false));
-    await click('#cancel-upload'); await click('#confirm-cancel-upload');
-    await waitFor('!document.querySelector("#cancel-dialog").open && !!document.querySelector(".cancelled-notice")');
-    const cancelNotice = await evaluate('document.querySelector(".cancel-toast")?.textContent || ""');
-    check('Confirmed cancellation displays a success notification identifying the batch', () => {
-      assert.match(cancelNotice, /取消上傳成功/); assert.match(cancelNotice, /ABC-20260907-008/);
-    });
-    await screenshot('cancel-success-notice');
-    await viewport(320, 640);
-    const cancelNoticeBounds = await evaluate(`(() => {
-      const toast=document.querySelector('.cancel-toast'); const box=toast.getBoundingClientRect();
-      const hit=document.elementFromPoint(box.x+box.width/2,box.y+box.height/2);
-      return {left:box.left,right:box.right,top:box.top,bottom:box.bottom,visible:toast===hit||toast.contains(hit)};
-    })()`);
-    check('Cancellation success notification remains visible within the mobile viewport', () => {
-      assert.ok(cancelNoticeBounds.left>=0 && cancelNoticeBounds.right<=320 && cancelNoticeBounds.top>=0 && cancelNoticeBounds.bottom<=640);
-      assert.equal(cancelNoticeBounds.visible,true);
-    });
-    await screenshot('cancel-success-notice-mobile');
-    await viewport(1440, 1000);
-    await waitFor('!document.querySelector(".cancel-toast")');
-    const cancelStateAfterNotice = await evaluate('document.querySelector(".detail-actions .badge").textContent');
-    check('Cancellation notification disappears while the cancelled batch state remains', () => assert.equal(cancelStateAfterNotice, '已取消'));
-    const cancelled = await evaluate(`({status:document.querySelector('.detail-actions .badge').textContent,cancel:!!document.querySelector('#cancel-upload'),waiting:document.querySelectorAll('.stage.waiting').length,names:[...document.querySelectorAll('.stage-name')].map(e=>e.textContent)})`);
-    check('N03 cancelled upload keeps all eight stages and cannot be cancelled again',()=>{assert.equal(cancelled.status,'已取消');assert.equal(cancelled.cancel,false);assert.equal(cancelled.waiting,6);assert.deepEqual(cancelled.names,['上傳檔案','審核完成',...stageNames]);});
-    const cancelTime = await evaluate('document.querySelector(".stage.cancelled .stage-time").textContent');
-    check('N03 cancellation time matches the compact pipeline time format',()=>assert.match(cancelTime,/^\d{2}:\d{2}:\d{2}$/));
-    await screenshot('24-cancelled-batch');
-    await click('[data-stage="7"]');
-    const cancelledDownstream = await evaluate('document.querySelector("#stage-detail").textContent');
-    check('N03 downstream cancellation state cannot start execution',()=>assert.match(cancelledDownstream,/執行 0 次.*自動重試 0 次[\s\S]*後續不再處理/));
+    const auditBeforeReviewBrowsing = await evaluate('window.BatchConsoleAudit.list()');
+    const reviewOnly = await evaluate(`({status:document.querySelector('.detail-actions .badge').textContent,cancel:!!document.querySelector('#cancel-upload'),waiting:document.querySelectorAll('.stage.waiting').length})`);
+    check('R06 review detail is read-only for the administrator',()=>{assert.equal(reviewOnly.status,'審核中');assert.equal(reviewOnly.cancel,false);assert.equal(reviewOnly.waiting,6);});
     await navigate('[data-route="dashboard"]'); await click('#dashboard-stats [data-status="reviewing"]');
     const remainingReview = await evaluate(`({count:document.querySelector('.stat.reviewing .stat-number').textContent,ids:[...document.querySelectorAll('#dashboard-table [data-batch]')].map(e=>e.dataset.batch)})`);
-    check('N03 cancelled batch disappears only from pending review, with updated count',()=>{assert.equal(remainingReview.count,'1');assert.deepEqual(remainingReview.ids,['ABC-20260907-009']);});
-    await navigate('[data-route="audit"]'); await waitFor('!document.querySelector("#audit-view").hidden');
-    const cancellationAudit = await evaluate('window.BatchConsoleAudit.list().filter(e=>e.batchId==="ABC-20260907-008")');
-    check('N03 cancellation is retained by the shared audit recorder',()=>assert.equal(cancellationAudit.filter(e=>e.action==='取消上傳：批次已取消，後續流程不再執行').length,1));
+    check('R06 viewing review details preserves the pending batches and audit',()=>{assert.equal(remainingReview.count,'2');assert.deepEqual(remainingReview.ids,['ABC-20260907-008','ABC-20260907-009']);});
+    assert.deepEqual(await evaluate('window.BatchConsoleAudit.list()'), auditBeforeReviewBrowsing);
 
     await navigate('[data-route="query"]');
     await click('#show-all-batches');
@@ -406,8 +376,8 @@ async function main() {
     await click('#show-all-batches');
     await evaluate(`document.querySelector('#batch-id-input').value='ABC-20260907-008';document.querySelector('#batch-search').requestSubmit()`);
     await waitFor('!document.querySelector("#batch-detail").hidden');
-    const foundCancelled = await evaluate('document.querySelector(".detail-actions .badge").textContent');
-    check('N03 cancelled batch remains searchable',()=>assert.equal(foundCancelled,'已取消'));
+    const foundPending = await evaluate('document.querySelector(".detail-actions .badge").textContent');
+    check('R06 pending batch remains searchable without a state change',()=>assert.equal(foundPending,'審核中'));
 
     await click('#back-to-batches');
     await click('#show-all-batches');
@@ -416,10 +386,8 @@ async function main() {
       await viewport(width,640); await layout('manual-review-width-'+width);
     }
     await viewport(320,640); await screenshot('29-manual-review-mobile');
-    await click('#cancel-upload'); await screenshot('30-cancel-confirmation-mobile');
-    const cancelBounds = await evaluate(`[...document.querySelectorAll('#cancel-dialog button')].map(e=>{const r=e.getBoundingClientRect();return {top:r.top,bottom:r.bottom,left:r.left,right:r.right}})`);
-    check('N03 mobile cancellation confirmation actions are fully visible',()=>assert.ok(cancelBounds.every(r=>r.top>=0&&r.left>=0&&r.right<=320&&r.bottom<=640)));
-    await click('#keep-upload');
+    const mobileCancelVisible = await evaluate('!!document.querySelector("#cancel-upload")');
+    check('R06 mobile review detail has no cancellation action',()=>assert.equal(mobileCancelVisible,false));
     await click('#back-to-batches'); await click('#show-all-batches'); await click('#open-query-calendar');
     await calendarLayout('batch query small mobile'); await screenshot('31-query-calendar-mobile');
     await click('[data-date="2026-09-05"]'); await click('[data-date="2026-09-06"]'); await click('#apply-calendar');
@@ -550,9 +518,9 @@ async function main() {
     const failedDownloadAudit = await evaluate('window.BatchConsoleAudit.list()');
     check('A failed download keeps the audit history unchanged', () => assert.deepEqual(failedDownloadAudit,successfulDownload));
     await navigate('[data-route="audit"]');
-    const downloadAuditRow = await evaluate(`(() => { const row=document.querySelector('.audit-table tbody tr'); return {batch:row.querySelector('.batch-code').textContent,action:row.querySelector('.audit-action').textContent,source:row.querySelector('.audit-source').textContent}; })()`);
+    const downloadAuditRow = await evaluate(`(() => { const row=document.querySelector('.audit-table tbody tr'); return {batch:row.querySelector('.batch-code').textContent,action:row.querySelector('.audit-action').textContent,source:row.querySelector('.audit-source')?.textContent ?? null}; })()`);
     check('Operation log renders one download entry with both filenames and a dash for the batch ID', () => {
-      assert.equal(downloadAuditRow.batch,'—'); assert.equal(downloadAuditRow.action,successfulDownload.at(-1).action); assert.equal(downloadAuditRow.source,'下傳');
+      assert.equal(downloadAuditRow.batch,'—'); assert.equal(downloadAuditRow.action,successfulDownload.at(-1).action); assert.equal(downloadAuditRow.source,null); assert.equal(successfulDownload.at(-1).page,'下傳');
     });
     await screenshot('35-download-audit-record');
     check('No uncaught JavaScript exceptions', () => assert.deepEqual(runtimeErrors, []));

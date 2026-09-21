@@ -8,3 +8,5 @@ artifacts/
 context-compactor/
 example/
 docs/
+.env
+.env.*

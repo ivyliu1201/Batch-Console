@@ -3,7 +3,7 @@ import { computed, nextTick, onMounted, onUnmounted, ref } from 'vue';
 import Icon from './Icon.vue';
 import { dateKey, displayDate, taipeiNow } from '../lib/format.js';
 import { selectDate } from '../lib/date-selection.js';
-const props = defineProps({ start: { type: String, default: '' }, end: { type: String, default: '' }, description: { type: String, default: '選擇一天，或指定起訖日期。' } });
+const props = defineProps({ start: { type: String, default: '' }, end: { type: String, default: '' } });
 const emit = defineEmits(['apply', 'closed']);
 const dialog = ref(null);
 const mode = ref('range');
@@ -37,7 +37,6 @@ const months = computed(() => (narrow.value ? [0] : [0, 1]).map(offset => {
   };
 }));
 const canApply = computed(() => !!(draftStart.value && draftEnd.value && draftEnd.value <= today.value));
-const hint = computed(() => !draftStart.value ? `請選擇${mode.value === 'single' ? '日期' : '開始日期'}。` : !draftEnd.value ? '請選擇結束日期；再次點選同一天可選單日。' : '日期已選擇完成，按「套用日期」篩選紀錄。');
 async function open() {
   draftStart.value = props.start;
   draftEnd.value = props.end;
@@ -94,12 +93,12 @@ function apply() {
 </script>
 <template>
   <dialog ref="dialog" id="date-dialog" aria-labelledby="date-dialog-title" @close="onClose" @keydown="moveFocus">
-    <div class="dialog-heading"><div><h2 id="date-dialog-title">選擇日期</h2><p>{{ description }}</p></div><button type="button" class="icon-button" id="close-calendar" aria-label="關閉日期選擇器" @click="close"><Icon name="close" /></button></div>
+    <div class="dialog-heading"><div><h2 id="date-dialog-title">選擇日期</h2></div><button type="button" class="icon-button" id="close-calendar" aria-label="關閉日期選擇器" @click="close"><Icon name="close" /></button></div>
     <div class="date-options">
       <div class="date-mode" role="group" aria-label="日期選擇模式"><button type="button" data-date-mode="range" :aria-pressed="mode === 'range'" @click="changeMode('range')">日期區間</button><button type="button" data-date-mode="single" :aria-pressed="mode === 'single'" @click="changeMode('single')">單日</button></div>
       <div class="selected-dates"><div><small id="date-start-label">{{ mode === 'single' ? '選擇日期' : '開始日期' }}</small><strong id="selected-start">{{ draftStart ? displayDate(draftStart) : '尚未選擇' }}</strong></div><span id="date-separator" :hidden="mode === 'single'">至</span><div id="selected-end-box" :hidden="mode === 'single'"><small>結束日期</small><strong id="selected-end">{{ draftEnd ? displayDate(draftEnd) : '尚未選擇' }}</strong></div></div>
     </div>
-    <div class="calendar-navigation"><button type="button" class="icon-button" id="previous-month" aria-label="上一個月" @click="moveMonth(-1)"><Icon name="chevron" class="rotate" /></button><span>點選月曆中的日期</span><button type="button" class="icon-button" id="next-month" aria-label="下一個月" :disabled="!canMoveNext" @click="moveMonth(1)"><Icon name="chevron" /></button></div>
+    <div class="calendar-navigation"><button type="button" class="icon-button" id="previous-month" aria-label="上一個月" @click="moveMonth(-1)"><Icon name="chevron" class="rotate" /></button><button type="button" class="icon-button" id="next-month" aria-label="下一個月" :disabled="!canMoveNext" @click="moveMonth(1)"><Icon name="chevron" /></button></div>
     <div id="calendar-months" class="calendar-months">
       <section v-for="item in months" :key="item.key" class="calendar-month" :aria-label="`${item.year}年${item.number}月`">
         <h3>{{ item.year }} 年 {{ item.number }} 月</h3>
@@ -110,7 +109,6 @@ function apply() {
         </div>
       </section>
     </div>
-    <p id="calendar-hint" class="calendar-hint" role="status">{{ hint }}</p>
     <div class="dialog-footer"><button type="button" class="text-button" id="reset-calendar" @click="reset">重選日期</button><div><button type="button" class="button secondary" id="cancel-calendar" @click="close">取消</button><button type="button" class="button primary" id="apply-calendar" :disabled="!canApply" @click="apply">套用日期</button></div></div>
   </dialog>
 </template>

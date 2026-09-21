@@ -1,13 +1,29 @@
 <script setup>
-import { onBeforeUnmount, onMounted, ref } from 'vue'
+import { nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
+import { useRouter } from 'vue-router'
 import Icon from './Icon.vue'
 import flowerLogoUrl from '../assets/console-flower.png'
+import { currentUser, users, switchRole } from '../services/session.js'
 
 defineProps({ collapsed: Boolean })
 defineEmits(['toggle'])
 
 const isUserMenuOpen = ref(false)
 const userMenu = ref(null)
+const userMenuTrigger = ref(null)
+const router = useRouter()
+
+const dismissUserMenu = () => {
+  isUserMenuOpen.value = false
+  userMenuTrigger.value?.focus({ preventScroll: true })
+}
+
+const selectUser = async (id) => {
+  switchRole(id)
+  dismissUserMenu()
+  await nextTick()
+  await router.replace({ name: 'workbench' })
+}
 
 const toggleUserMenu = () => {
   isUserMenuOpen.value = !isUserMenuOpen.value
@@ -51,8 +67,9 @@ onBeforeUnmount(() => {
       </RouterLink>
     </div>
 
-    <div ref="userMenu" class="user-menu-wrap">
+    <div ref="userMenu" class="user-menu-wrap" @keydown.esc.stop.prevent="dismissUserMenu">
       <button
+        ref="userMenuTrigger"
         class="user-menu"
         type="button"
         :aria-expanded="isUserMenuOpen"
@@ -60,14 +77,14 @@ onBeforeUnmount(() => {
         @click.stop="toggleUserMenu"
       >
         <span class="user-icon" aria-hidden="true"><Icon name="user" /></span>
-        <span>範例使用者</span>
+        <span>{{ currentUser.name }}</span>
         <span class="user-caret" aria-hidden="true">▾</span>
       </button>
 
       <div v-if="isUserMenuOpen" class="user-dropdown" role="menu">
-        <div class="user-dropdown-info">帳號：demo-user</div>
-        <div class="user-dropdown-info">權限：系統管理員</div>
-        <button class="logout-button" type="button" role="menuitem">登出</button>
+        <button v-for="user in users" :key="user.id" class="role-option" type="button" role="menuitemradio"
+          :data-role="user.role" :aria-checked="currentUser.id === user.id"
+          @click="selectUser(user.id)">{{ user.name }}</button>
       </div>
     </div>
   </header>

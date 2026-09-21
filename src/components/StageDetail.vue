@@ -6,19 +6,15 @@ import { statusNames, stageSummary } from '../lib/status.js';
 const props = defineProps({ stage: { type: Object, required: true }, selectedAttempt: { type: Number, required: true }, batchState: { type: String, default: '' } });
 defineEmits(['select-attempt']);
 const summary = computed(() => stageSummary(props.stage));
-const preparationMessage = computed(() => props.stage.id === 'manual-upload' ? '檔案已上傳。' : summary.value.state === 'reviewing' ? '此批次正在等待審核，審核完成前不會執行後續流程。' : summary.value.state === 'cancelled' ? '使用者已取消上傳，審核及後續流程不再進行。' : '此批次已完成審核，不能再取消上傳。');
-const advice = computed(() => props.stage.issue?.steps.map(step => {
-  const emphasis = step.match(/^[^，。]+/)[0];
-  return { emphasis, rest: step.slice(emphasis.length) };
-}) || []);
+const preparationMessage = computed(() => props.stage.id === 'manual-upload' ? '檔案已上傳。' : summary.value.state === 'reviewing' ? '此批次正在等待審核。' : summary.value.state === 'cancelled' ? '此批次已取消，審核及後續流程不再進行。' : '此批次已完成審核。');
 </script>
 <template>
   <section id="stage-detail" class="stage-detail" aria-live="polite">
     <div class="stage-detail-heading"><h2>{{ stage.name }} · 階段明細</h2><StatusBadge :state="summary.state" /><span v-if="stage.kind === 'preparation'" class="preparation-label">手動作業前置階段</span><span v-else class="attempt-count">執行 {{ summary.executionCount }} 次 <span aria-hidden="true">／</span> 自動重試 {{ summary.retryCount }} 次</span></div>
-    <div v-if="stage.kind === 'preparation'" class="panel stage-info"><strong>{{ preparationMessage }}</strong><p>此為上傳／審核階段，不計入後續處理的自動重試次數。</p></div>
+    <div v-if="stage.kind === 'preparation'" class="panel stage-info"><strong>{{ preparationMessage }}</strong></div>
     <div v-else-if="stage.issue" class="diagnosis-grid">
       <article class="panel diagnosis error"><h3><Icon name="alert" />失敗原因</h3><span class="error-code">{{ stage.issue.code }}</span><p><strong>{{ stage.issue.reason }}</strong></p><p class="stop-note"><strong>已達執行上限：首次執行 + 2 次自動重試。</strong>第三次仍失敗；後續階段未執行。</p></article>
-      <article class="panel diagnosis solution"><h3><Icon name="file" />解決方法 <span class="count-label">示例</span></h3><ol><li v-for="step in advice" :key="step.emphasis"><strong>{{ step.emphasis }}</strong>{{ step.rest }}</li></ol><small>以上為示例建議，實際處置須依公司核定程序。</small></article>
+      <article class="panel diagnosis solution"><h3><Icon name="file" />解決方法</h3><dl class="solution-details"><dt>問題位置</dt><dd>{{ stage.name }}<span>程式位置：{{ stage.issue.location || '尚未提供' }}</span></dd><dt>問題說明</dt><dd>{{ stage.issue.reason }}<span>{{ stage.issue.code }}</span></dd><dt>聯絡人員</dt><dd>蕭文賢</dd></dl></article>
     </div>
     <div v-else class="panel stage-info">{{ summary.state === 'success' ? '此階段已成功完成，沒有失敗原因或待處理事項。' : summary.state === 'waiting' ? batchState === 'cancelled' ? '批次已取消，此階段尚未執行，後續不再處理。' : '前序階段尚未完成，此階段尚未執行。' : '此階段正在處理，尚未取得完成結果。' }}</div>
     <section v-if="stage.attempts.length" class="panel attempt-panel" aria-label="每次執行紀錄">

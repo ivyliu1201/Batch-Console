@@ -33,11 +33,19 @@ export function cancelUpload(batch, time) {
   ) };
 }
 
-export function filterBatches(batches, query, start, end) {
+export function canViewBatch(batch, actor) {
+  if (!actor || actor.role === 'admin') return true;
+  if (batch.mode !== '手動') return false;
+  if (actor.role === 'clerk') return true;
+  return actor.role === 'supervisor' && (batch.state === 'reviewing' || batch.reviewedBy === actor.id);
+}
+
+export function filterBatches(batches, query, start, end, { actor, mode = '' } = {}) {
   const term = query.trim().toLowerCase();
   return batches.filter(batch => {
     const day = batch.updated.slice(0, 10);
-    return batch.id.toLowerCase().includes(term) && (!start || day >= start) && (!end || day <= end);
+    return canViewBatch(batch, actor) && (!mode || batch.mode === mode)
+      && batch.id.toLowerCase().includes(term) && (!start || day >= start) && (!end || day <= end);
   });
 }
 
@@ -54,17 +62,21 @@ export function paginate(records, page, pageSize = 20) {
   return { items: records.slice((currentPage - 1) * pageSize, currentPage * pageSize), page: currentPage, total: records.length, pageCount };
 }
 
-export function createAudit(initial = [], clock = () => new Date().toISOString()) {
+export function createAudit(initial = [], clock = () => new Date().toISOString(), getActor = () => null) {
   const records = initial.slice();
   const listeners = new Set();
   return {
-    record(page, action, batchId = null) {
-      const entry = { page, action, batchId, time: clock() };
+    record(page, action, batchId = null, actor = getActor()) {
+      const entry = { page, action, batchId, time: clock(), ...(actor ? { actor: { ...actor } } : {}) };
       records.push(entry);
       listeners.forEach(listener => listener(entry));
       return entry;
     },
     list() { return records.slice(); },
+    restore(entries) {
+      records.splice(0, records.length, ...entries);
+      listeners.forEach(listener => listener());
+    },
     subscribe(listener) { listeners.add(listener); return () => listeners.delete(listener); }
   };
 }

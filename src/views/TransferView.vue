@@ -1,6 +1,8 @@
 <script setup>
 import { computed, inject, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { audit } from '../services/audit.js'
+import { currentUser } from '../services/session.js'
+import { savePendingChanges } from '../services/persistence.js'
 import {
   filePreviewModes,
   formatFileSize,
@@ -99,7 +101,7 @@ const backToList = () => {
   previewMode.value = 'all'
   if (fileInput.value) fileInput.value.value = ''
   if (completedResult) {
-    showNotification('success', '轉送成功', `已完成 ${completedResult.sourceFileName} 的示範轉送。`)
+    showNotification('success', '轉送成功', `已完成 ${completedResult.sourceFileName} 的轉送。`)
   }
 }
 
@@ -147,6 +149,7 @@ const confirmTransfer = async () => {
 
   const job = selectedJob.value
   const file = selectedFile.value
+  const actor = currentUser.value
   const shouldFail = file.name.toLowerCase().includes('fail')
 
   if (shouldFail) {
@@ -170,6 +173,8 @@ const confirmTransfer = async () => {
     }
 
     const requestFileName = formatRequestFileName(job.fileTypeCode, timestamp, serial)
+    audit.record('轉送', `轉送成功：${job.jobName}；來源檔案：${file.name}；請求檔案：${requestFileName}`, null, actor)
+    await savePendingChanges()
     transferResult.value = {
       jobName: job.jobName,
       sourceFileName: file.name,
@@ -179,10 +184,9 @@ const confirmTransfer = async () => {
     previewMode.value = 'all'
     showConfirmModal.value = false
     clearNotification()
-    audit.record('轉送', `轉送成功：${job.jobName}；來源檔案：${file.name}；請求檔案：${requestFileName}`)
   } catch {
     showConfirmModal.value = false
-    showNotification('error', '轉送失敗', '無法建立請求檔流水號，請稍後重新嘗試。')
+    showNotification('error', '轉送失敗', '無法完成作業紀錄保存，請確認瀏覽器儲存狀態。')
   } finally {
     isTransferring.value = false
   }
@@ -452,6 +456,7 @@ onBeforeUnmount(() => {
 
 .transfer-section {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: 22px;
 }
 

@@ -1,0 +1,184 @@
+[
+  {
+    "routeId": "search",
+    "viewportId": "desktop",
+    "browser": "chromium",
+    "scenarioId": "U01",
+    "stateId": "verified",
+    "file": "console.spec.mjs",
+    "titlePath": [
+      "console.spec.mjs",
+      "U01 all pipeline stages fit one desktop row without scrolling"
+    ],
+    "projectName": "chromium"
+  },
+  {
+    "routeId": "console",
+    "viewportId": "desktop",
+    "browser": "chromium",
+    "scenarioId": "U02",
+    "stateId": "verified",
+    "file": "console.spec.mjs",
+    "titlePath": [
+      "console.spec.mjs",
+      "U02 both batch lists have no secondary status text for all roles"
+    ],
+    "projectName": "chromium"
+  },
+  {
+    "routeId": "console",
+    "viewportId": "desktop",
+    "browser": "chromium",
+    "scenarioId": "U03",
+    "stateId": "verified",
+    "file": "console.spec.mjs",
+    "titlePath": [
+      "console.spec.mjs",
+      "U03 query mode is beside dates and combines with keyword and date"
+    ],
+    "projectName": "chromium"
+  },
+  {
+    "routeId": "console",
+    "viewportId": "desktop",
+    "browser": "chromium",
+    "scenarioId": "U04",
+    "stateId": "verified",
+    "file": "console.spec.mjs",
+    "titlePath": [
+      "console.spec.mjs",
+      "U04 workbench dropdown immediately filters without a dialog"
+    ],
+    "projectName": "chromium"
+  },
+  {
+    "routeId": "console",
+    "viewportId": "desktop",
+    "browser": "chromium",
+    "scenarioId": "U05",
+    "stateId": "verified",
+    "file": "console.spec.mjs",
+    "titlePath": [
+      "console.spec.mjs",
+      "U05 role visibility supervisor default and two review entry points"
+    ],
+    "projectName": "chromium"
+  },
+  {
+    "routeId": "console",
+    "viewportId": "desktop",
+    "browser": "chromium",
+    "scenarioId": "U06",
+    "stateId": "verified",
+    "file": "console.spec.mjs",
+    "titlePath": [
+      "console.spec.mjs",
+      "U06 clerk upload creates one shared batch and durable actor record"
+    ],
+    "projectName": "chromium"
+  },
+  {
+    "routeId": "console",
+    "viewportId": "desktop",
+    "browser": "chromium",
+    "scenarioId": "U07",
+    "stateId": "verified",
+    "file": "console.spec.mjs",
+    "titlePath": [
+      "console.spec.mjs",
+      "U07 file preview failures dismissal and success preserve audit rules"
+    ],
+    "projectName": "chromium"
+  },
+  {
+    "routeId": "console",
+    "viewportId": "desktop",
+    "browser": "chromium",
+    "scenarioId": "U08",
+    "stateId": "verified",
+    "file": "console.spec.mjs",
+    "titlePath": [
+      "console.spec.mjs",
+      "U08 download across pages records names once and excludes failure"
+    ],
+    "projectName": "chromium"
+  },
+  {
+    "routeId": "console",
+    "viewportId": "desktop",
+    "browser": "chromium",
+    "scenarioId": "U09",
+    "stateId": "verified",
+    "file": "console.spec.mjs",
+    "titlePath": [
+      "console.spec.mjs",
+      "U09 query paging history date clearing and invisible detail permissions"
+    ],
+    "projectName": "chromium"
+  },
+  {
+    "routeId": "console",
+    "viewportId": "desktop",
+    "browser": "chromium",
+    "scenarioId": "U10",
+    "stateId": "verified",
+    "file": "console.spec.mjs",
+    "titlePath": [
+      "console.spec.mjs",
+      "U10 breadcrumbs diagnosis and role-menu keyboard behavior"
+    ],
+    "projectName": "chromium"
+  },
+  {
+    "routeId": "console",
+    "viewportId": "desktop",
+    "browser": "chromium",
+    "scenarioId": "U11",
+    "stateId": "verified",
+    "file": "console.spec.mjs",
+    "titlePath": [
+      "console.spec.mjs",
+      "U11 desktop controls and four-column audit text remain readable"
+    ],
+    "projectName": "chromium"
+  },
+  {
+    "routeId": "console",
+    "viewportId": "desktop",
+    "browser": "chromium",
+    "scenarioId": "U12",
+    "stateId": "verified",
+    "file": "console.spec.mjs",
+    "titlePath": [
+      "console.spec.mjs",
+      "U12 saved dataset survives a real browser restart and later date"
+    ],
+    "projectName": "chromium"
+  },
+  {
+    "routeId": "console",
+    "viewportId": "desktop",
+    "browser": "chromium",
+    "scenarioId": "U13",
+    "stateId": "verified",
+    "file": "console.spec.mjs",
+    "titlePath": [
+      "console.spec.mjs",
+      "U13 desktop navigation opens all pages"
+    ],
+    "projectName": "chromium"
+  },
+  {
+    "routeId": "console",
+    "viewportId": "desktop",
+    "browser": "chromium",
+    "scenarioId": "U14",
+    "stateId": "verified",
+    "file": "console.spec.mjs",
+    "titlePath": [
+      "console.spec.mjs",
+      "U14 switching any role returns to its default workbench from every page"
+    ],
+    "projectName": "chromium"
+  }
+]

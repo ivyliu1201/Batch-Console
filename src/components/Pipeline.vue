@@ -18,3 +18,14 @@ const summaries = computed(() => props.stages.map(stageSummary));
     </div>
   </div>
 </template>
+
+<style scoped>
+.pipeline-area{min-width:0}
+.pipeline,.pipeline.extended{--pipeline-gap:8px;display:grid;grid-template-columns:repeat(var(--stage-count),minmax(0,1fr));gap:var(--pipeline-gap)}
+.pipeline .stage{display:flex;flex-direction:column;align-items:flex-start;gap:0;padding:14px 6px;min-width:0}
+.pipeline .stage-circle{width:28px;height:28px;margin:0 0 10px}
+.pipeline .stage-name{font-size:12px;line-height:1.6;min-height:0;white-space:nowrap;overflow-wrap:normal;text-wrap:nowrap}
+.pipeline .stage-state{margin-top:8px;white-space:nowrap}
+.pipeline .stage-time{margin-top:6px;white-space:nowrap}
+.pipeline .stage:not(:last-child)::after{display:block;width:var(--pipeline-gap);height:1px;left:auto;right:calc(-1 * var(--pipeline-gap) - 1px);top:28px;bottom:auto}
+</style>

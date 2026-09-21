@@ -1,0 +1,32 @@
+{
+  "schemaVersion": 1,
+  "projectRoot": "C:\\ivy\\code\\Batch-Console",
+  "revision": 4,
+  "updatedAtUtc": "2026-09-21T06:32:23.703Z",
+  "latestRun": {
+    "pending": [],
+    "startedAtUtc": "2026-09-21T06:12:25.772Z",
+    "id": "840613bd-df39-4b15-863f-48a5114bfb1f",
+    "phase": "report",
+    "status": "finished",
+    "updatedAtUtc": "2026-09-21T06:32:23.703Z",
+    "casesPath": "tests/e2e/cases.json",
+    "reportPath": "docs/UX_REVIEW_2026-09-21.md",
+    "playwrightPath": "artifacts/frontend-ux-audit/verified/playwright.json",
+    "validationPath": "artifacts/frontend-ux-audit/verified/validation.json"
+  },
+  "firstAuditStartedAtUtc": "2026-09-21T06:12:25.772Z",
+  "scenarioFiles": [
+    "tests/e2e/SCENARIOS.md"
+  ],
+  "runtime": {
+    "packagePath": "C:/Users/fanny/node_modules/@playwright/test/package.json",
+    "version": "1.61.0",
+    "cliPath": "C:/Users/fanny/node_modules/@playwright/test/cli.js",
+    "configPath": "C:/ivy/code/Batch-Console/tests/e2e/playwright.config.mjs",
+    "executablePath": "C:/Users/fanny/AppData/Local/ms-playwright/chromium-1228/chrome-win64/chrome.exe",
+    "command": "node C:/Users/fanny/node_modules/@playwright/test/cli.js test --config tests/e2e/playwright.config.mjs",
+    "browser": "chromium",
+    "configSha256": "967ba214dc71da324cf4ef45ab743418f9a393258349d16c572bb707b3485627"
+  }
+}

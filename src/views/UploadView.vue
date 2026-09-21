@@ -1,6 +1,7 @@
 <script setup>
 import { computed, inject, onBeforeUnmount, ref, watch } from 'vue'
-import { audit } from '../services/audit.js'
+import { completeUpload, openBatchCount } from '../services/batches.js'
+import { currentUser } from '../services/session.js'
 import {
   filePreviewModes,
   formatFileSize,
@@ -16,61 +17,51 @@ const uploadJobs = [
     jobCode: 'JOB01',
     fileTypeCode: 'DT01',
     jobName: '範例資料匯入',
-    openBatchCount: 0,
   },
   {
     jobCode: 'JOB02',
     fileTypeCode: 'DT02',
     jobName: '測試資料同步',
-    openBatchCount: 2,
   },
   {
     jobCode: 'JOB03',
     fileTypeCode: 'DT03',
     jobName: '報表資料彙整',
-    openBatchCount: 1,
   },
   {
     jobCode: 'JOB04',
     fileTypeCode: 'DT04',
     jobName: '通知資料更新',
-    openBatchCount: 0,
   },
   {
     jobCode: 'JOB05',
     fileTypeCode: 'DT05',
     jobName: '排程資料處理',
-    openBatchCount: 3,
   },
   {
     jobCode: 'JOB06',
     fileTypeCode: 'DT06',
     jobName: '回應資料匯入',
-    openBatchCount: 0,
   },
   {
     jobCode: 'JOB07',
     fileTypeCode: 'DT07',
     jobName: '對照資料整理',
-    openBatchCount: 1,
   },
   {
     jobCode: 'JOB08',
     fileTypeCode: 'DT08',
     jobName: '跨系統資料交換',
-    openBatchCount: 0,
   },
   {
     jobCode: 'JOB09',
     fileTypeCode: 'DT09',
     jobName: '歷史資料歸檔',
-    openBatchCount: 4,
   },
   {
     jobCode: 'JOB10',
     fileTypeCode: 'DT10',
     jobName: '狀態資料更新',
-    openBatchCount: 0,
   },
 ]
 
@@ -129,7 +120,7 @@ const backToList = () => {
   previewMode.value = 'all'
   if (fileInput.value) fileInput.value.value = ''
   if (completedResult) {
-    showNotification('success', '上傳成功', `已完成 ${completedResult.sourceFileName} 的示範上傳。`)
+    showNotification('success', '上傳成功', `已完成 ${completedResult.sourceFileName} 的上傳。`)
   }
 }
 
@@ -177,6 +168,7 @@ const confirmUpload = async () => {
 
   const job = selectedJob.value
   const file = selectedFile.value
+  const actor = currentUser.value
   const shouldFail = file.name.toLowerCase().includes('fail')
 
   if (shouldFail) {
@@ -200,7 +192,9 @@ const confirmUpload = async () => {
     }
 
     const requestFileName = formatRequestFileName(job.fileTypeCode, timestamp, serial)
+    const batch = await completeUpload(job, file.name, requestFileName, actor)
     uploadResult.value = {
+      batchId: batch.id,
       jobName: job.jobName,
       sourceFileName: file.name,
       requestFileName,
@@ -209,10 +203,9 @@ const confirmUpload = async () => {
     previewMode.value = 'all'
     showConfirmModal.value = false
     clearNotification()
-    audit.record('上傳', `上傳成功：${job.jobName}；來源檔案：${file.name}；請求檔案：${requestFileName}`)
   } catch {
     showConfirmModal.value = false
-    showNotification('error', '上傳失敗', '無法建立請求檔流水號，請稍後重新嘗試。')
+    showNotification('error', '上傳失敗', '無法完成批次資料保存，請確認瀏覽器儲存狀態。')
   } finally {
     isUploading.value = false
   }
@@ -278,9 +271,9 @@ onBeforeUnmount(() => {
               <td>
                 <span
                   class="batch-badge"
-                  :class="job.openBatchCount > 0 ? 'is-open' : 'is-zero'"
+                  :class="openBatchCount(job.jobCode) > 0 ? 'is-open' : 'is-zero'"
                 >
-                  {{ job.openBatchCount }}
+                  {{ openBatchCount(job.jobCode) }}
                 </span>
               </td>
               <td>
@@ -475,6 +468,7 @@ onBeforeUnmount(() => {
 
 .upload-section {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: 22px;
 }
 
